@@ -1,58 +1,88 @@
 # Go Password Manager
 
-## Overview
-Go Password Manager is a simple, secure, and encrypted password manager designed for macOS and Windows. It allows users to store key-value secrets with built-in versioning and local storage of encrypted items. This application does not have any web or network functionality, ensuring that all data remains local and secure.
+A secure, cross-platform password manager built in Go with a modern Fyne UI. All secrets are encrypted and stored locally, plans for third party secret conversion and perhaps a browser extension in the future. Will always be free, password security should be for everyone
 
 ## Features
-- **Secure Storage**: All secrets are stored in an encrypted format to protect sensitive information.
-- **Versioning**: Keep track of changes to secrets with built-in versioning, allowing retrieval of previous versions.
-- **Local Storage**: All data is stored locally on the user's machine, ensuring privacy and security.
-- **Cross-Platform**: Compatible with both macOS and Windows.
 
-## Project Structure
-```
-go-password-manager
-├── cmd
-│   └── main.go          # Entry point of the application
-├── internal
-│   ├── storage
-│   │   └── storage.go   # Local storage implementation for encrypted items
-│   ├── crypto
-│   │   └── crypto.go    # Encryption and decryption functions
-│   ├── secrets
-│   │   └── secrets.go    # Management of key-value secrets
-│   └── versioning
-│       └── versioning.go # Versioning implementation for secrets
-├── ui
-│   ├── app.go           # User interface setup
-│   └── components.go     # UI components definitions
-├── go.mod               # Module definition
-├── go.sum               # Module checksums
-└── README.md            # Project documentation
+- Atomic design UI structure (pages, molecules, atoms)
+- Secure secrets storage and encryption
+- Configurable window size and persistent UI state
+- Unit and E2E test support via Makefile
+- Easy extensibility and modular codebase
+
+## Getting Started
+
+### Prerequisites
+
+- Go 1.20+
+- [Fyne](https://fyne.io/) (UI library)
+
+### Installation
+
+Clone the repo:
+
+```sh
+git clone https://github.com/JTBranch/SecurePasswordManager.git
+cd SecurePasswordManager
 ```
 
-## Installation
-1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/go-password-manager.git
-   ```
-2. Navigate to the project directory:
-   ```
-   cd go-password-manager
-   ```
-3. Install dependencies:
-   ```
-   go mod tidy
-   ```
+Install dependencies:
 
-## Usage
-To run the application, execute the following command:
+```sh
+go mod tidy
 ```
+
+### Running the App
+
+```sh
 go run cmd/main.go
 ```
 
+### Testing
+
+#### Unit Tests
+
+Run all unit tests:
+
+```sh
+make unitTest
+```
+
+#### E2E Tests
+
+Run all end-to-end tests:
+
+```sh
+make e2eTest
+```
+
+## Project Structure
+
+```
+go-password-manager/
+  cmd/                # Main entrypoint
+  internal/           # Core logic (config, crypto, service, domain)
+  ui/
+    pages/            # Top-level UI pages
+    molecules/        # UI components (header, modals, etc)
+    atoms/            # Smallest UI elements
+    e2e/              # E2E UI tests
+  tests/
+    e2e/              # E2E workflow tests
+  Makefile            # Test commands
+```
+
 ## Contributing
-Contributions are welcome! Please open an issue or submit a pull request for any enhancements or bug fixes.
+
+We welcome contributions! Please:
+
+- Fork the repo and create a feature branch
+- Follow the atomic design and modular code guidelines
+- Write unit and E2E tests for new features
+- Submit a pull request with a clear description
+
+For major changes, please open an issue first to discuss what you’d like to change.
 
 ## License
-This project is licensed under the MIT License. See the LICENSE file for details.
+
+MIT
