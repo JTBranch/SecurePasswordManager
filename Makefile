@@ -70,6 +70,22 @@ ci-build:
 	mkdir -p tmp/output
 	go build -ldflags="-s -w" -o tmp/output/password-manager ./cmd/main.go
 
+# Cross-platform build (used by CI)
+build-cross:
+	@mkdir -p tmp/output
+	@if [ -z "$(GOOS)" ] || [ -z "$(GOARCH)" ]; then \
+		echo "❌ GOOS and GOARCH must be set"; \
+		echo "Example: make build-cross GOOS=linux GOARCH=amd64"; \
+		exit 1; \
+	fi
+	@BINARY_NAME="password-manager"; \
+	if [ "$(GOOS)" = "windows" ]; then \
+		BINARY_NAME="password-manager.exe"; \
+	fi; \
+	echo "Building for $(GOOS)/$(GOARCH)..."; \
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w" -o tmp/output/$${BINARY_NAME}-$(GOOS)-$(GOARCH) ./cmd/main.go; \
+	ls -lh tmp/output/$${BINARY_NAME}-$(GOOS)-$(GOARCH)
+
 # Code Quality
 # Format code
 fmt:
@@ -164,4 +180,4 @@ help:
 	@echo "  make install-hooks                    # Install pre-commit formatting"
 	@echo "  make ci-local                         # Run full CI pipeline"
 
-.PHONY: dev dev-watch build build-only run test unitTest e2eTest coverage coverage-check fmt fmt-check imports-check ci-local ci-test ci-coverage ci-build lint clean install-deps install-hooks uninstall-hooks help
+.PHONY: dev dev-watch build build-only build-cross run test unitTest e2eTest coverage coverage-check fmt fmt-check imports-check ci-local ci-test ci-coverage ci-build lint clean install-deps install-hooks uninstall-hooks help
