@@ -9,10 +9,11 @@ echo "🚀 Starting Local CI Build..."
 echo "================================"
 
 # Create output directory
-mkdir -p tmp/output
+mkdir -p tmp/output/test-reports
 
 # Clean previous outputs
-rm -f tmp/output/*
+rm -f tmp/output/*.{json,txt,html,out,log} 2>/dev/null || true
+rm -f tmp/output/test-reports/* 2>/dev/null || true
 
 echo "📦 Installing dependencies..."
 go mod download
@@ -88,15 +89,47 @@ else
     COVERAGE_FAILED=true
 fi
 
+echo "🔄 Running Integration Tests..."
+echo "==============================="
+
+# Set environment variable to enable enhanced logging for integration tests
+export GO_PASSWORD_MANAGER_INTEGRATION_LOGGING=true
+
+# Run Integration tests with enhanced logging
+go test -v ./tests/integration/... \
+    -json > tmp/output/integration-test-results.json 2>&1 || echo "Integration tests completed"
+
+# Also capture regular output with application logs
+go test -v ./tests/integration/... > tmp/output/integration-test-output.txt 2>&1 || echo "Integration output captured"
+
+if grep -q '"Action":"fail"' tmp/output/integration-test-results.json; then
+    echo "❌ Integration tests failed"
+    INTEGRATION_STATUS="❌ FAILED"
+    INTEGRATION_FAILED=true
+else
+    echo "✅ Integration tests passed"
+    INTEGRATION_STATUS="✅ PASSED"
+fi
+
 echo "🔄 Running E2E Tests..."
 echo "======================="
 
-# Run E2E tests
+# Set environment variable to enable enhanced logging for E2E tests
+export GO_PASSWORD_MANAGER_E2E_LOGGING=true
+export GO_PASSWORD_MANAGER_LOG_LEVEL=DEBUG
+
+# Run E2E tests with enhanced logging
 go test -v ./tests/e2e/... \
     -json > tmp/output/e2e-test-results.json 2>&1 || echo "E2E tests completed"
 
-# Also capture regular output
+# Also capture regular output with application logs
 go test -v ./tests/e2e/... > tmp/output/e2e-test-output.txt 2>&1 || echo "E2E output captured"
+
+# Capture application logs if they exist
+if [ -d "tmp/test-data" ]; then
+    echo "Capturing application logs from test runs..."
+    find tmp/test-data -name "*.log" -exec cp {} tmp/output/test-reports/ \; 2>/dev/null || echo "No application logs found"
+fi
 
 echo "📊 Generating Test Summary..."
 echo "============================="
@@ -130,6 +163,10 @@ $(cat tmp/output/coverage-summary.txt)
 ## Generated Files in tmp/output/
 $(ls -la tmp/output/ | grep -v "^total" | grep -v "^d")
 EOF
+
+# Generate HTML test report
+echo "Generating HTML test report..."
+./scripts/generate-test-report.sh
 
 echo "🏗️  Building Application..."
 echo "============================"
@@ -173,6 +210,13 @@ echo "   - golint:     $(wc -l < tmp/output/lint-report.txt) issues"
 echo "✅ Unit Tests:"
 echo "   - Coverage: $COVERAGE_STATUS"
 echo "   - Results: tmp/output/unit-test-results.json"
+
+echo "✅ Integration Tests:"
+if grep -q "PASS" tmp/output/integration-test-output.txt 2>/dev/null; then
+    echo "   - Status: ✅ PASSED"
+else
+    echo "   - Status: ❌ FAILED or incomplete"
+fi
 
 echo "✅ E2E Tests:"
 if grep -q "PASS" tmp/output/e2e-test-output.txt 2>/dev/null; then

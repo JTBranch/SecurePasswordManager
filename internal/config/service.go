@@ -2,7 +2,9 @@ package config
 
 import (
 	"encoding/json"
+	"go-password-manager/internal/env"
 	"os"
+	"path/filepath"
 )
 
 // ConfigService manages application configuration
@@ -13,18 +15,24 @@ type ConfigService struct {
 
 // NewConfigService creates a new configuration service
 func NewConfigService() (*ConfigService, error) {
-	path, err := configFilePath()
-	if err != nil {
-		return nil, err
-	}
+	envConfig := env.Get()
+	path := envConfig.GetConfigFilePath()
+
 	var cfg AppConfig
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		cfg = AppConfig{
-			AppVersion:   "1.0.0",
-			WindowWidth:  1600,
-			WindowHeight: 900,
+			AppVersion:   envConfig.AppVersion,
+			WindowWidth:  envConfig.DefaultWindowWidth,
+			WindowHeight: envConfig.DefaultWindowHeight,
 		}
 		data, _ := json.MarshalIndent(cfg, "", "  ")
+
+		// Ensure directory exists
+		dir := filepath.Dir(path)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return nil, err
+		}
+
 		_ = os.WriteFile(path, data, 0600)
 	} else {
 		data, err := os.ReadFile(path)

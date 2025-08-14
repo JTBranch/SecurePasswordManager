@@ -1,5 +1,34 @@
 # Ignore secrets file
 secrets.json
 
+# Ignore environment files (except .env.example)
+.env
+.env.*
+!.env.example
+
 # Ignore temporary build and CI output files
 tmp/
+
+# Ignore backup files
+*.backup
+*.bak
+*.orig
+
+# Ignore application configuration files (runtime generated)
+*.config
+app.config
+
+# Ignore encryption keys
+keys/
+.default-key
+*.key
+
+# Ignore documentation files that are temporary or generated
+*_STRATEGY.md
+*_COMPLETE.md
+*_PLAN.md
+*_IMPLEMENTATION.md
+
+# Ignore compiled binaries
+main
+/main

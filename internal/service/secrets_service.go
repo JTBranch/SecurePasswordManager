@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/domain"
+	"go-password-manager/internal/env"
 	"go-password-manager/internal/logger"
 	"os"
 	"path/filepath"
@@ -42,25 +43,17 @@ func NewSecretsService(appVersion, appUser string) *SecretsService {
 		logger.Error("Failed to load encryption key:", err.Error())
 	}
 
-	envService := NewEnvironmentService()
-	var filePath string
-	if envService.IsProduction() {
-		configDir, err := os.UserConfigDir()
-		if err != nil {
-			logger.Error("Failed to get user config dir:", err.Error())
-			filePath = filepath.Join(".", secretsFile) // fallback
-		} else {
-			appConfigDir := filepath.Join(configDir, "GoPasswordManager")
-			if err := os.MkdirAll(appConfigDir, 0700); err != nil {
-				logger.Error("Failed to create app config dir:", err.Error())
-				filePath = filepath.Join(".", secretsFile) // fallback
-			} else {
-				filePath = filepath.Join(appConfigDir, secretsFile)
-			}
-		}
-	} else {
-		filePath = filepath.Join(".", secretsFile)
+	// Use environment configuration for file path
+	envConfig := env.Get()
+	filePath := envConfig.GetSecretsFilePath()
+
+	// Ensure directory exists
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		logger.Error("Failed to create secrets directory:", err.Error())
+		filePath = filepath.Join(".", env.DefaultSecretsFileName) // fallback
 	}
+
 	ensureSecretsFileExists(filePath, appVersion, appUser)
 	return &SecretsService{
 		AppVersion:    appVersion,

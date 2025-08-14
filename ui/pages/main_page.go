@@ -11,9 +11,13 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-var secretsService = service.NewSecretsService("1.0.0", "jack.branch")
+var defaultSecretsService = service.NewSecretsService("1.0.0", "jack.branch")
 
 func MainPage(win fyne.Window) fyne.CanvasObject {
+	return MainPageWithService(win, defaultSecretsService)
+}
+
+func MainPageWithService(win fyne.Window, secretsService *service.SecretsService) fyne.CanvasObject {
 	fileData, _ := secretsService.LoadLatestSecrets()
 	var selectedIdx int = -1
 	listBox := container.NewVBox()

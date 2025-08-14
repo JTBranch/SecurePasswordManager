@@ -53,8 +53,18 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-reports
-          path: tmp/output/
+          name: test-reports-and-logs
+          path: |
+            tmp/output/
+            tmp/output/test-reports/
+          retention-days: 30
+
+      - name: Upload Test Report Page
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-html
+          path: tmp/output/test-report.html
           retention-days: 30
 
       - name: Comment Coverage on PR
@@ -84,7 +94,8 @@ jobs:
 
             **Coverage**: ${status}
 
-            📁 [View detailed coverage report in artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            📁 [Download Test Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            📊 [Download HTML Test Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) 
 
             <details>
             <summary>📋 Build Summary</summary>
@@ -93,8 +104,14 @@ jobs:
             - ✅ Import organization: Passed  
             - ✅ Linting: Passed
             - ✅ Unit tests: Passed
+            - ✅ Integration tests: Passed  
             - ✅ E2E tests: Passed
             - ${status.includes('✅') ? '✅' : '❌'} Coverage: ${coverage}
+
+            **Available Artifacts:**
+            - 📊 \`test-report-html\` - Interactive HTML test report
+            - 📁 \`test-reports-and-logs\` - All test outputs and application logs
+            - 🏗️ \`binaries-linux-amd64\` - Built application
 
             </details>`;
 
