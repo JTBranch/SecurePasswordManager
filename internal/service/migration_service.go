@@ -24,6 +24,7 @@ type LegacySecretsFile struct {
 	Secrets     []LegacySecret `json:"secrets"`
 }
 
+// MigrateToNewFormat migrates legacy secret files to the new versioned format
 func MigrateToNewFormat(filePath string) error {
 	logger.Debug("Starting migration to new format for file:", filePath)
 

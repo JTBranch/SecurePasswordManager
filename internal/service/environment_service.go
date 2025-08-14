@@ -8,6 +8,7 @@ import "os"
 //	env.IsProduction()
 type EnvironmentService struct{}
 
+// NewEnvironmentService creates a new environment service
 func NewEnvironmentService() *EnvironmentService {
 	return &EnvironmentService{}
 }

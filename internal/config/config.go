@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 )
 
+// AppConfig represents the application configuration
 type AppConfig struct {
 	KeyUUID      string `json:"keyUUID"`
 	AppVersion   string `json:"appVersion"`

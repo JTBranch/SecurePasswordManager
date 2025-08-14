@@ -2,6 +2,19 @@
 
 A secure, cross-platform password manager built in Go with a modern Fyne UI. All secrets are encrypted and stored locally with full version history. Features include secret editing, version management, and a clean atomic UI design. Plans for third party secret conversion and perhaps a browser extension in the future. Will always be free, password security should be for everyone.
 
+## AI-Assisted Development
+
+This project serves as an **experiment in AI-assisted software development**, exploring how modern AI tools can help build production-quality applications with robust automation, comprehensive testing, and high code quality standards. All major architectural decisions, code design patterns, and development direction have been made and supervised by the human developer, with AI assistance used as a productivity tool for implementation.
+
+The development process leverages AI assistance for:
+
+- **Architecture Implementation**: Translating architectural decisions into clean, modular patterns (atomic UI design, service layers)
+- **Code Quality**: Automated formatting, linting, static analysis, and comprehensive test coverage
+- **CI/CD Pipeline**: Automated builds, testing, coverage enforcement, and deployment workflows
+- **Best Practices**: Implementing Go conventions, security patterns, and maintainable code structures
+
+The goal is to demonstrate that AI-assisted development, under proper human guidance and supervision, can produce enterprise-grade software while maintaining code quality, security, and maintainability standards typically expected in production environments.
+
 ## Features
 
 - **Secure Local Storage**: AES encrypted secrets stored locally

@@ -22,6 +22,7 @@ func keyFilePath(keyUUID string) (string, error) {
 	return filepath.Join(appConfigDir, "."+keyUUID), nil // Obfuscated file name
 }
 
+// LoadOrCreateKey loads an existing encryption key or creates a new one
 func LoadOrCreateKey() ([]byte, error) {
 	cfgService, err := config.NewConfigService()
 	if err != nil {

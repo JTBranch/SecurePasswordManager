@@ -5,11 +5,13 @@ import (
 	"os"
 )
 
+// ConfigService manages application configuration
 type ConfigService struct {
 	Config *AppConfig
 	path   string
 }
 
+// NewConfigService creates a new configuration service
 func NewConfigService() (*ConfigService, error) {
 	path, err := configFilePath()
 	if err != nil {
@@ -34,6 +36,7 @@ func NewConfigService() (*ConfigService, error) {
 	return &ConfigService{Config: &cfg, path: path}, nil
 }
 
+// Save saves the configuration to disk
 func (cs *ConfigService) Save() error {
 	data, err := json.MarshalIndent(cs.Config, "", "  ")
 	if err != nil {
@@ -42,12 +45,14 @@ func (cs *ConfigService) Save() error {
 	return os.WriteFile(cs.path, data, 0600)
 }
 
+// SetWindowSize sets the window dimensions in the configuration
 func (cs *ConfigService) SetWindowSize(width, height int) error {
 	cs.Config.WindowWidth = width
 	cs.Config.WindowHeight = height
 	return cs.Save()
 }
 
+// GetWindowSize returns the window dimensions from the configuration
 func (cs *ConfigService) GetWindowSize() (int, int) {
 	return cs.Config.WindowWidth, cs.Config.WindowHeight
 }

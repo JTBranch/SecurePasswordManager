@@ -10,12 +10,14 @@ import (
 	"fyne.io/fyne/v2/app"
 )
 
+// App represents the main application
 type App struct {
 	fyneApp       fyne.App
 	window        fyne.Window
 	configService *config.ConfigService
 }
 
+// NewApp creates a new application instance
 func NewApp() *App {
 	fyneApp := app.New()
 	window := fyneApp.NewWindow("Password Manager")
@@ -33,6 +35,7 @@ func NewApp() *App {
 	return &App{fyneApp: fyneApp, window: window, configService: configService}
 }
 
+// Run starts the application
 func (a *App) Run() {
 	a.window.SetContent(pages.MainPage(a.window))
 

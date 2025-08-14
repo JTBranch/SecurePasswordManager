@@ -124,6 +124,18 @@ lint:
 	go vet ./...
 	golint ./... || echo "Install golint: go install golang.org/x/lint/golint@latest"
 
+# Advanced linting with golangci-lint
+lint-advanced:
+	golangci-lint run
+
+# Auto-fix linting issues where possible
+lint-fix:
+	golangci-lint run --fix
+
+# Just check for comment issues (golint only)
+lint-comments:
+	golint ./...
+
 # Clean build artifacts
 clean:
 	rm -f main tmp/main
@@ -133,6 +145,7 @@ clean:
 install-deps:
 	go install golang.org/x/lint/golint@latest
 	go install golang.org/x/tools/cmd/goimports@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 # Install system dependencies for Fyne (Ubuntu/Debian only)
 install-system-deps:
@@ -149,6 +162,7 @@ install-system-deps:
 install-dev-deps:
 	go install golang.org/x/lint/golint@latest
 	go install golang.org/x/tools/cmd/goimports@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	go install github.com/air-verse/air@latest
 
 # Install git pre-commit hook for auto-formatting
@@ -184,6 +198,10 @@ help:
 	@echo "  coverage         - Generate coverage report"
 	@echo "  coverage-check   - Check coverage meets threshold (MIN_COVERAGE=$(MIN_COVERAGE)%)"
 	@echo "  ci-local         - Run full CI pipeline locally"
+	@echo "  lint             - Run basic linting (go vet + golint)"
+	@echo "  lint-advanced    - Run advanced linting (golangci-lint)"
+	@echo "  lint-fix         - Auto-fix linting issues where possible"
+	@echo "  lint-comments    - Check only comment-related issues"
 	@echo "  lint             - Run code quality checks"
 	@echo "  install-deps     - Install CI/build dependencies"
 	@echo "  install-system-deps - Install system dependencies for Fyne (Ubuntu/Debian)"
@@ -201,4 +219,4 @@ help:
 	@echo "  make install-hooks                    # Install pre-commit formatting"
 	@echo "  make ci-local                         # Run full CI pipeline"
 
-.PHONY: dev dev-watch build build-only build-cross run test unitTest e2eTest coverage coverage-check fmt fmt-check imports-check ci-local ci-test ci-coverage ci-build lint clean install-deps install-system-deps install-dev-deps install-hooks uninstall-hooks help
+.PHONY: dev dev-watch build build-only build-cross run test unitTest e2eTest coverage coverage-check fmt fmt-check imports-check ci-local ci-test ci-coverage ci-build lint lint-advanced lint-fix lint-comments clean install-deps install-system-deps install-dev-deps install-hooks uninstall-hooks help

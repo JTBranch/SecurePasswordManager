@@ -13,6 +13,7 @@ import (
 
 const secretsFile = "secrets.json"
 
+// SecretsService manages secret operations with encryption
 type SecretsService struct {
 	AppVersion    string
 	AppUser       string
@@ -34,6 +35,7 @@ func ensureSecretsFileExists(filePath, appVersion, appUser string) {
 	}
 }
 
+// NewSecretsService creates a new secrets service
 func NewSecretsService(appVersion, appUser string) *SecretsService {
 	key, err := crypto.LoadOrCreateKey()
 	if err != nil {
@@ -68,7 +70,7 @@ func NewSecretsService(appVersion, appUser string) *SecretsService {
 	}
 }
 
-// 1. Load all secrets with nested versions
+// LoadAllSecrets loads all secrets with nested versions from the file
 func (s *SecretsService) LoadAllSecrets() (domain.SecretsFile, error) {
 	logger.Debug("Loading all secrets from file:", s.filePath)
 	file, err := os.Open(s.filePath)
@@ -87,7 +89,7 @@ func (s *SecretsService) LoadAllSecrets() (domain.SecretsFile, error) {
 	return data, nil
 }
 
-// 1a. Load latest versions only for UI display (returns only current versions)
+// LoadLatestSecrets loads only the latest versions of secrets for UI display
 func (s *SecretsService) LoadLatestSecrets() (domain.SecretsFile, error) {
 	allSecrets, err := s.LoadAllSecrets()
 	if err != nil {

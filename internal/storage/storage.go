@@ -6,12 +6,14 @@ import (
 	"sync"
 )
 
+// Storage provides a thread-safe key-value storage with file persistence
 type Storage struct {
 	mu       sync.RWMutex
 	data     map[string][]byte
 	filePath string
 }
 
+// NewStorage creates a new storage instance
 func NewStorage(filePath string) (*Storage, error) {
 	s := &Storage{
 		data:     make(map[string][]byte),
@@ -23,6 +25,7 @@ func NewStorage(filePath string) (*Storage, error) {
 	return s, nil
 }
 
+// Save stores a value for the given key
 func (s *Storage) Save(key string, value []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -30,6 +33,7 @@ func (s *Storage) Save(key string, value []byte) error {
 	return s.save()
 }
 
+// Get retrieves a value for the given key
 func (s *Storage) Get(key string) ([]byte, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -37,6 +41,7 @@ func (s *Storage) Get(key string) ([]byte, bool) {
 	return value, exists
 }
 
+// Delete removes a value for the given key
 func (s *Storage) Delete(key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

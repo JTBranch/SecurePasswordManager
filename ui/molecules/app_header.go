@@ -63,7 +63,7 @@ func (headerLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	return min
 }
 
-// AppHeader renders the search box, menu button, and create button in a responsive header.
+// AppHeader renders the search box, menu button, and create button in a responsive header
 func AppHeader(props AppHeaderProps) fyne.CanvasObject {
 	searchEntry := widget.NewEntry()
 	searchEntry.SetPlaceHolder("Search secrets...")
