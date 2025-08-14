@@ -66,6 +66,10 @@ func TestAppHeaderLayout(t *testing.T) {
 }
 
 func TestAppHeaderComponents(t *testing.T) {
+	// Initialize test app
+	testApp := app.New()
+	defer testApp.Quit()
+
 	props := AppHeaderProps{
 		OnSearch: func(string) {
 			// No-op for test

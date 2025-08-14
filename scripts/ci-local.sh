@@ -61,9 +61,15 @@ echo "======================================="
 
 # Run unit tests with coverage (using built-in tools only)
 echo "Running unit tests..."
+
+# First run with verbose output for console display
+go test -v -race -coverprofile=tmp/output/coverage.out -covermode=atomic \
+    ./internal/... ./ui/... | tee tmp/output/unit-test-console.txt
+
+# Then run again with JSON output for parsing (suppress console output)
 go test -v -race -coverprofile=tmp/output/coverage.out -covermode=atomic \
     ./internal/... ./ui/... \
-    -json > tmp/output/unit-test-results.json
+    -json > tmp/output/unit-test-results.json 2>&1
 
 # Generate coverage reports using built-in tools
 echo "Generating coverage reports..."
@@ -95,12 +101,13 @@ echo "==============================="
 # Set environment variable to enable enhanced logging for integration tests
 export GO_PASSWORD_MANAGER_INTEGRATION_LOGGING=true
 
-# Run Integration tests with enhanced logging
+# Run Integration tests with enhanced logging - show output in console
+echo "Integration test output:"
+go test -v ./tests/integration/... | tee tmp/output/integration-test-output.txt
+
+# Also capture JSON output for parsing
 go test -v ./tests/integration/... \
     -json > tmp/output/integration-test-results.json 2>&1 || echo "Integration tests completed"
-
-# Also capture regular output with application logs
-go test -v ./tests/integration/... > tmp/output/integration-test-output.txt 2>&1 || echo "Integration output captured"
 
 if grep -q '"Action":"fail"' tmp/output/integration-test-results.json; then
     echo "❌ Integration tests failed"
@@ -118,12 +125,13 @@ echo "======================="
 export GO_PASSWORD_MANAGER_E2E_LOGGING=true
 export GO_PASSWORD_MANAGER_LOG_LEVEL=DEBUG
 
-# Run E2E tests with enhanced logging
+# Run E2E tests with enhanced logging - show output in console
+echo "E2E test output:"
+go test -v ./tests/e2e/... | tee tmp/output/e2e-test-output.txt
+
+# Also capture JSON output for parsing
 go test -v ./tests/e2e/... \
     -json > tmp/output/e2e-test-results.json 2>&1 || echo "E2E tests completed"
-
-# Also capture regular output with application logs
-go test -v ./tests/e2e/... > tmp/output/e2e-test-output.txt 2>&1 || echo "E2E output captured"
 
 # Capture application logs if they exist
 if [ -d "tmp/test-data" ]; then
