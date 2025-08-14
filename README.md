@@ -30,6 +30,95 @@ make release-minor    # v1.0.0 -> v1.1.0
 make release-major    # v1.0.0 -> v2.0.0
 ```
 
+## Automated Release System
+
+This project features a fully automated release pipeline that creates multi-platform binaries and GitHub releases:
+
+### 🤖 Automatic Releases (Recommended)
+
+The system automatically detects version bumps from your commit messages using [Conventional Commits](https://www.conventionalcommits.org/):
+
+```bash
+# Patch release (1.0.0 → 1.0.1)
+git commit -m "fix: resolve authentication issue"
+
+# Minor release (1.0.0 → 1.1.0) 
+git commit -m "feat: add secret export functionality"
+
+# Major release (1.0.0 → 2.0.0)
+git commit -m "feat!: redesign storage format"
+# or
+git commit -m "feat: add new feature
+
+BREAKING CHANGE: changes the API interface"
+```
+
+**How it works:**
+1. Push commits with conventional prefixes (`feat:`, `fix:`, etc.)
+2. CI pipeline runs comprehensive tests (unit, integration, E2E)
+3. On CI success, release workflow automatically triggers
+4. Version is determined from commit messages
+5. Multi-platform binaries are built and released
+
+### 🛠️ Manual Releases
+
+For immediate releases or custom versioning:
+
+```bash
+make release-patch      # 1.0.0 → 1.0.1 (bug fixes)
+make release-minor      # 1.0.0 → 1.1.0 (new features)
+make release-major      # 1.0.0 → 2.0.0 (breaking changes)
+make release-prerelease # 1.0.0 → 1.0.1-rc.1 (pre-release)
+```
+
+### 📦 Multi-Platform Builds
+
+Every release automatically generates optimized binaries for:
+
+- **Linux x64** (`GOOS=linux GOARCH=amd64`)
+- **macOS ARM64** (`GOOS=darwin GOARCH=arm64`) - Apple Silicon
+- **Windows x64** (`GOOS=windows GOARCH=amd64`)
+
+### 🔄 Release Workflow
+
+1. **Code Changes** → Push to `main` branch
+2. **CI Pipeline** → Runs all tests with coverage reporting
+3. **Version Detection** → Analyzes commit messages for version bump
+4. **Release Trigger** → Only activates after successful CI completion
+5. **Multi-Platform Build** → Compiles binaries for all target platforms
+6. **GitHub Release** → Creates release with binaries and auto-generated notes
+
+### 📋 Monitoring Releases
+
+Track release progress with GitHub CLI:
+
+```bash
+# View CI pipeline status
+gh run list --workflow="ci.yml"
+
+# View automatic releases
+gh run list --workflow="release.yml"
+
+# View manual releases  
+gh run list --workflow="manual-release.yml"
+
+# View latest releases
+gh release list
+```
+
+### ⚙️ Release Configuration
+
+The release system is configured via GitHub Actions workflows:
+
+- **`.github/workflows/ci.yml`** - Comprehensive testing pipeline
+- **`.github/workflows/release.yml`** - Automated release on CI success
+- **`.github/workflows/manual-release.yml`** - Manual release triggers
+
+**Prerequisites for releases:**
+- GitHub CLI installed (`gh` command)
+- Repository permissions: Settings → Actions → General → "Read and write permissions"
+- Valid GitHub token with workflow access
+
 - **Secure Local Storage**: AES encrypted secrets stored locally
 - **Version History**: Full version tracking with ability to view previous secret values
 - **Secret Management**: Create, edit, view, and delete secrets with ease
@@ -78,16 +167,29 @@ make run
 
 ### Available Commands
 
-| Command             | Description                                |
-| ------------------- | ------------------------------------------ |
-| `make dev`          | Run in development mode with debug logging |
-| `make dev-watch`    | Run with hot reload (requires air)         |
-| `make build`        | Build the application binary               |
-| `make run`          | Run the built binary in production mode    |
-| `make unitTest`     | Run unit tests                             |
-| `make e2eTest`      | Run end-to-end tests                       |
-| `make clean`        | Remove build artifacts                     |
-| `make install-deps` | Install development dependencies (air)     |
+| Command               | Description                                    |
+| --------------------- | ---------------------------------------------- |
+| **Development**       |                                                |
+| `make dev`            | Run in development mode with debug logging    |
+| `make build`          | Build the application binary                   |
+| **Testing**           |                                                |
+| `make test-unit`      | Run unit tests with race detection            |
+| `make test-integration` | Run integration tests with coverage         |
+| `make test-e2e`       | Run end-to-end tests with detailed logging    |
+| `make test-all`       | Run all tests with comprehensive reporting    |
+| `make ci-reports`     | Run complete CI pipeline locally              |
+| **Code Quality**      |                                                |
+| `make fmt`            | Format code with go fmt                       |
+| `make lint`           | Run linting (golangci-lint or go vet)         |
+| **Release Management** |                                               |
+| `make version`        | Show current git version                       |
+| `make release-patch`  | Trigger patch release (1.0.0 → 1.0.1)        |
+| `make release-minor`  | Trigger minor release (1.0.0 → 1.1.0)        |
+| `make release-major`  | Trigger major release (1.0.0 → 2.0.0)        |
+| `make release-prerelease` | Trigger prerelease (1.0.0 → 1.0.1-rc.1)  |
+| **Utilities**         |                                                |
+| `make clean`          | Remove build artifacts and test reports       |
+| `make help`           | Show detailed help with all available commands |
 
 ### Environment Variables
 
@@ -144,18 +246,80 @@ This structure allows you to:
 
 ### Testing
 
+The project includes comprehensive testing with detailed reporting:
+
 ```sh
-# Run unit tests
-make unitTest
+# Run individual test suites
+make test-unit          # Unit tests with race detection
+make test-integration   # Integration tests with coverage
+make test-e2e          # End-to-end tests with detailed logging
 
-# Run end-to-end tests
-make e2eTest
+# Run all tests with HTML reports
+make test-all          # Comprehensive test suite with coverage reports
 
-# Run all tests
-make unitTest && make e2eTest
+# Run complete CI pipeline locally
+make ci-reports        # Full CI pipeline with all reports generated
 ```
 
+**Test Reports:**
+All tests generate detailed reports in the `tmp/output/` directory:
+- `coverage.html` - Interactive HTML coverage report
+- `coverage-summary.txt` - Coverage percentage summary
+- `test-results.json` - Detailed test execution results
+
+These reports are automatically generated in CI builds and available for download as artifacts.
+
+## CI/CD Pipeline
+
+The project features a comprehensive GitHub Actions pipeline with:
+
+### 🧪 **Comprehensive Testing**
+- **Unit Tests**: Fast, isolated component testing with race detection
+- **Integration Tests**: Cross-component functionality testing with coverage
+- **E2E Tests**: Full application workflow testing with GUI simulation
+- **Coverage Reporting**: Integrated with [Codecov](https://codecov.io) for coverage tracking
+
+### 📊 **Quality Assurance**
+- **Code Coverage**: Minimum coverage thresholds with detailed HTML reports
+- **Race Detection**: Concurrent access testing with `-race` flag
+- **Linting**: Code quality checks with `golangci-lint`
+- **Formatting**: Automatic code formatting validation
+
+### 🚀 **Automated Deployment**
+- **Multi-Platform Builds**: Linux, macOS (ARM64), Windows binaries
+- **Semantic Versioning**: Automatic version bumping via conventional commits
+- **Release Automation**: CI-dependent releases with comprehensive artifacts
+- **GitHub Releases**: Automatic release creation with binaries and notes
+
+### 📁 **Artifact Management**
+- **Test Reports**: HTML coverage reports and JSON test results
+- **Build Artifacts**: Multi-platform binaries with 30-day retention
+- **Release Assets**: Optimized production binaries attached to releases
+
 ## Application Features
+
+### Secret Management
+
+- **Create Secrets**: Add new encrypted secrets with automatic versioning
+- **Edit Secrets**: Modify existing secrets while preserving version history
+- **View Secrets**: Reveal secret values with click-to-show functionality
+- **Delete Secrets**: Remove secrets entirely (including all versions)
+
+### Version History
+
+- **Track Changes**: Every edit creates a new version with timestamp
+- **View History**: Browse previous versions of any secret
+- **Restore Values**: Copy previous versions for restoration
+- **Audit Trail**: Complete history of when secrets were modified
+
+### User Interface
+
+- **Clean Design**: Atomic UI components for consistent experience
+- **Responsive Layout**: Adapts to different window sizes
+- **Intuitive Navigation**: Easy-to-use buttons and forms
+- **Security First**: Values hidden by default with reveal functionality
+
+## Project Structure
 
 ### Secret Management
 
