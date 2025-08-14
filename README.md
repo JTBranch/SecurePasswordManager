@@ -58,6 +58,36 @@ go run cmd/main.go
 go run cmd/main.go
 ```
 
+#### Development: Watch Mode
+
+For rapid development, you can run the app in watch mode so it automatically reloads when you change files. This is typically done using a tool like [`air`](https://github.com/air-verse/air):
+
+1. Install air (if not already):
+
+   ```sh
+   go install github.com/air-verse/air@latest
+   ```
+
+2. Add Go's bin directory to your PATH (optional, for easier usage):
+
+   ```sh
+   export PATH=$PATH:$(go env GOPATH)/bin
+   ```
+
+3. Run in watch mode:
+
+   ```sh
+   air
+   ```
+
+   Or if you didn't add to PATH:
+
+   ```sh
+   $(go env GOPATH)/bin/air
+   ```
+
+This will watch your Go files and restart the app on changes. By default, this runs in development mode (with secrets.json in the repo).
+
 ### Testing
 
 #### Unit Tests

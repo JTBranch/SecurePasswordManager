@@ -39,9 +39,9 @@ func NewSecretsService(appVersion, appUser string) *SecretsService {
 		logger.Error("Failed to load encryption key:", err.Error())
 	}
 
-	env := os.Getenv("GO_PASSWORD_MANAGER_ENV")
+	envService := NewEnvironmentService()
 	var filePath string
-	if env == "prod" {
+	if envService.IsProduction() {
 		configDir, err := os.UserConfigDir()
 		if err != nil {
 			logger.Error("Failed to get user config dir:", err.Error())
