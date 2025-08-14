@@ -75,6 +75,15 @@ fmt-check:
 		echo "✅ Code is properly formatted"; \
 	fi
 
+imports-check:
+	@if [ -n "$$(goimports -l .)" ]; then \
+		echo "❌ Imports are not organized. Run 'make fmt' to fix:"; \
+		goimports -l .; \
+		exit 1; \
+	else \
+		echo "✅ Imports are properly organized"; \
+	fi
+
 lint:
 	go vet ./...
 	@if command -v golint &> /dev/null; then \
@@ -145,6 +154,7 @@ help:
 	@echo "Code Quality:"
 	@echo "  fmt              - Format code"
 	@echo "  fmt-check        - Check code formatting"
+	@echo "  imports-check    - Check import organization"
 	@echo "  lint             - Run basic linting"
 	@echo "  lint-advanced    - Run advanced linting"
 	@echo ""
@@ -155,4 +165,4 @@ help:
 	@echo "  install-hooks    - Install git hooks"
 	@echo "  clean            - Clean build artifacts"
 
-.PHONY: dev dev-watch build build-release run test test-unit test-integration test-e2e test-all coverage coverage-check fmt fmt-check lint lint-advanced ci-local install-deps install-dev-deps install-system-deps install-hooks clean help
+.PHONY: dev dev-watch build build-release run test test-unit test-integration test-e2e test-all coverage coverage-check fmt fmt-check imports-check lint lint-advanced ci-local install-deps install-dev-deps install-system-deps install-hooks clean help
