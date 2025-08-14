@@ -1,14 +1,16 @@
 # Go Password Manager
 
-A secure, cross-platform password manager built in Go with a modern Fyne UI. All secrets are encrypted and stored locally, plans for third party secret conversion and perhaps a browser extension in the future. Will always be free, password security should be for everyone
+A secure, cross-platform password manager built in Go with a modern Fyne UI. All secrets are encrypted and stored locally with full version history. Features include secret editing, version management, and a clean atomic UI design. Plans for third party secret conversion and perhaps a browser extension in the future. Will always be free, password security should be for everyone.
 
 ## Features
 
-- Atomic design UI structure (pages, molecules, atoms)
-- Secure secrets storage and encryption
-- Configurable window size and persistent UI state
-- Unit and E2E test support via Makefile
-- Easy extensibility and modular codebase
+- **Secure Local Storage**: AES encrypted secrets stored locally
+- **Version History**: Full version tracking with ability to view previous secret values
+- **Secret Management**: Create, edit, view, and delete secrets with ease
+- **Atomic UI Design**: Clean component structure (pages, molecules, atoms)
+- **Development Tools**: Hot reload, comprehensive testing, easy build system
+- **Cross-Platform**: Runs on macOS, Linux, and Windows
+- **Environment-Aware**: Separate development and production storage locations
 
 ## Getting Started
 
@@ -32,95 +34,157 @@ Install dependencies:
 go mod tidy
 ```
 
+### Quick Start
+
+The easiest way to get started is using the Makefile:
+
+```sh
+# Run in development mode
+make dev
+
+# Run with hot reload (install air first with `make install-deps`)
+make dev-watch
+
+# Build and run in production mode
+make build
+make run
+```
+
+### Available Commands
+
+| Command             | Description                                |
+| ------------------- | ------------------------------------------ |
+| `make dev`          | Run in development mode with debug logging |
+| `make dev-watch`    | Run with hot reload (requires air)         |
+| `make build`        | Build the application binary               |
+| `make run`          | Run the built binary in production mode    |
+| `make unitTest`     | Run unit tests                             |
+| `make e2eTest`      | Run end-to-end tests                       |
+| `make clean`        | Remove build artifacts                     |
+| `make install-deps` | Install development dependencies (air)     |
+
 ### Environment Variables
 
-You can control where secrets are stored using the `GO_PASSWORD_MANAGER_ENV` environment variable:
+The application supports different environments controlled by the `GO_PASSWORD_MANAGER_ENV` variable:
 
-- **Development/Testing (default):**
-  - `secrets.json` is stored in the project root and tracked by git (for easy inspection).
-- **Production:**
-  - Set `GO_PASSWORD_MANAGER_ENV=prod` before running the app.
-  - `secrets.json` will be stored in your OS user config directory:
-    - **macOS/Linux:** `~/Library/Application Support/GoPasswordManager/secrets.json` (macOS) or `~/.config/GoPasswordManager/secrets.json` (Linux)
+- **Development Mode (default):**
+
+  - `secrets.json` stored in project root
+  - Debug logging enabled
+  - Suitable for development and testing
+
+- **Production Mode:**
+  - Set `GO_PASSWORD_MANAGER_ENV=prod`
+  - `secrets.json` stored in OS user config directory:
+    - **macOS:** `~/Library/Application Support/GoPasswordManager/secrets.json`
+    - **Linux:** `~/.config/GoPasswordManager/secrets.json`
     - **Windows:** `%APPDATA%\GoPasswordManager\secrets.json`
-  - This file is never tracked by git and is protected by OS file permissions.
+  - Minimal logging
+  - Secure file permissions
 
-#### Example: Running in Production
+### Data Structure
 
-```sh
-export GO_PASSWORD_MANAGER_ENV=prod
-go run cmd/main.go
+Secrets are stored with full version history in a nested JSON structure:
+
+```json
+{
+  "secrets": [
+    {
+      "secretName": "example",
+      "type": "key_value",
+      "currentVersion": 2,
+      "versions": [
+        {
+          "secretValueEnc": "encrypted_value_v1",
+          "version": 1,
+          "updatedAt": "2025-08-14T10:29:00+01:00"
+        },
+        {
+          "secretValueEnc": "encrypted_value_v2",
+          "version": 2,
+          "updatedAt": "2025-08-14T10:30:00+01:00"
+        }
+      ]
+    }
+  ]
+}
 ```
 
-#### Example: Running in Development
+This structure allows you to:
 
-```sh
-go run cmd/main.go
-```
-
-#### Development: Watch Mode
-
-For rapid development, you can run the app in watch mode so it automatically reloads when you change files. This is typically done using a tool like [`air`](https://github.com/air-verse/air):
-
-1. Install air (if not already):
-
-   ```sh
-   go install github.com/air-verse/air@latest
-   ```
-
-2. Add Go's bin directory to your PATH (optional, for easier usage):
-
-   ```sh
-   export PATH=$PATH:$(go env GOPATH)/bin
-   ```
-
-3. Run in watch mode:
-
-   ```sh
-   air
-   ```
-
-   Or if you didn't add to PATH:
-
-   ```sh
-   $(go env GOPATH)/bin/air
-   ```
-
-This will watch your Go files and restart the app on changes. By default, this runs in development mode (with secrets.json in the repo).
+- Track all changes to secrets over time
+- View previous versions of any secret
+- Maintain audit trail of when secrets were modified
 
 ### Testing
 
-#### Unit Tests
-
-Run all unit tests:
-
 ```sh
+# Run unit tests
 make unitTest
-```
 
-#### E2E Tests
-
-Run all end-to-end tests:
-
-```sh
+# Run end-to-end tests
 make e2eTest
+
+# Run all tests
+make unitTest && make e2eTest
 ```
+
+## Application Features
+
+### Secret Management
+
+- **Create Secrets**: Add new encrypted secrets with automatic versioning
+- **Edit Secrets**: Modify existing secrets while preserving version history
+- **View Secrets**: Reveal secret values with click-to-show functionality
+- **Delete Secrets**: Remove secrets entirely (including all versions)
+
+### Version History
+
+- **Track Changes**: Every edit creates a new version with timestamp
+- **View History**: Browse previous versions of any secret
+- **Restore Values**: Copy previous versions for restoration
+- **Audit Trail**: Complete history of when secrets were modified
+
+### User Interface
+
+- **Clean Design**: Atomic UI components for consistent experience
+- **Responsive Layout**: Adapts to different window sizes
+- **Intuitive Navigation**: Easy-to-use buttons and forms
+- **Security First**: Values hidden by default with reveal functionality
 
 ## Project Structure
 
 ```
 go-password-manager/
-  cmd/                # Main entrypoint
-  internal/           # Core logic (config, crypto, service, domain)
-  ui/
-    pages/            # Top-level UI pages
-    molecules/        # UI components (header, modals, etc)
-    atoms/            # Smallest UI elements
-    e2e/              # E2E UI tests
-  tests/
-    e2e/              # E2E workflow tests
-  Makefile            # Test commands
+├── cmd/                    # Application entrypoint
+│   └── main.go            # Main application file
+├── internal/              # Core application logic
+│   ├── config/            # Configuration management
+│   ├── crypto/            # Encryption/decryption
+│   ├── domain/            # Data models and types
+│   ├── logger/            # Logging utilities
+│   ├── service/           # Business logic services
+│   ├── storage/           # File storage handling
+│   └── versioning/        # Version management
+├── ui/                    # User interface components
+│   ├── atoms/             # Smallest UI components
+│   ├── molecules/         # Composite UI components
+│   ├── pages/             # Full page layouts
+│   └── e2e/               # UI end-to-end tests
+├── tests/                 # Test suites
+│   └── e2e/               # End-to-end workflow tests
+├── Makefile              # Build and development commands
+├── .air.toml             # Hot reload configuration
+└── README.md             # This file
 ```
+
+### Architecture Principles
+
+- **Atomic Design**: UI components organized in atoms → molecules → pages hierarchy
+- **Clean Architecture**: Clear separation between domain, service, and UI layers
+- **Security First**: All secrets encrypted at rest with AES encryption
+- **Version Control**: Complete audit trail of all secret modifications
+- **Environment Aware**: Separate development and production configurations
 
 ## Contributing
 

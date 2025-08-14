@@ -3,15 +3,16 @@ package ui
 import (
 	"fmt"
 	"go-password-manager/internal/config"
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
 	"go-password-manager/internal/logger"
 	"go-password-manager/ui/pages"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
 )
 
 type App struct {
-	fyneApp      fyne.App
-	window       fyne.Window
+	fyneApp       fyne.App
+	window        fyne.Window
 	configService *config.ConfigService
 }
 

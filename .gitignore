@@ -1,2 +1,5 @@
 # Ignore secrets file
 secrets.json
+
+# Ignore temporary build and CI output files
+tmp/

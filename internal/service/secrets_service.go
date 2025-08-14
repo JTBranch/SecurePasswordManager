@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/logger"
@@ -67,7 +68,7 @@ func NewSecretsService(appVersion, appUser string) *SecretsService {
 	}
 }
 
-// 1. Load all secrets (no decryption)
+// 1. Load all secrets with nested versions
 func (s *SecretsService) LoadAllSecrets() (domain.SecretsFile, error) {
 	logger.Debug("Loading all secrets from file:", s.filePath)
 	file, err := os.Open(s.filePath)
@@ -86,47 +87,132 @@ func (s *SecretsService) LoadAllSecrets() (domain.SecretsFile, error) {
 	return data, nil
 }
 
-// 2. Save or update a secret
-func (s *SecretsService) SaveSecret(secretName, secretValue string, secretType domain.SecretType) error {
-	logger.Debug("Encrypting and saving secret:", secretName, secretValue)
-	encryptedValue, err := crypto.Encrypt([]byte(secretValue), s.encryptionKey)
+// 1a. Load latest versions only for UI display (returns only current versions)
+func (s *SecretsService) LoadLatestSecrets() (domain.SecretsFile, error) {
+	allSecrets, err := s.LoadAllSecrets()
 	if err != nil {
-		logger.Debug("Encryption failed:", err.Error())
-		return err
+		return domain.SecretsFile{}, err
 	}
-	secret := domain.Secret{
-		SecretName:     secretName,
-		SecretValueEnc: encryptedValue,
-		Type:           secretType,
-	}
-	data, err := s.LoadAllSecrets()
+
+	// The data structure already contains only latest versions in the UI representation
+	// Each secret has its versions nested, so we can return it as-is
+	return allSecrets, nil
+}
+
+// 1b. Get all versions of a specific secret for history display
+func (s *SecretsService) GetSecretVersions(secretName string) ([]domain.SecretVersion, error) {
+	allSecrets, err := s.LoadAllSecrets()
 	if err != nil {
-		logger.Debug("No existing secrets file, creating new one")
-		data = domain.SecretsFile{
-			AppVersion:  s.AppVersion,
-			AppUser:     s.AppUser,
-			LastUpdated: time.Now().Format(time.RFC3339),
-			Secrets:     []domain.Secret{},
+		return nil, err
+	}
+
+	// Find the secret and return its versions
+	for _, secret := range allSecrets.Secrets {
+		if secret.SecretName == secretName {
+			return secret.GetVersionsSorted(), nil
 		}
 	}
-	found := false
-	for i, sec := range data.Secrets {
-		if sec.SecretName == secret.SecretName {
-			secret.Version = sec.Version + 1
-			secret.UpdatedAt = time.Now().Format(time.RFC3339)
-			data.Secrets[i] = secret
-			found = true
+
+	return []domain.SecretVersion{}, nil
+}
+
+// 2. Save a secret (encrypted) - creates new secret or adds version to existing
+func (s *SecretsService) SaveSecret(name, value, secretType string) error {
+	logger.Debug("Saving secret:", name)
+	secretsData, err := s.LoadAllSecrets()
+	if err != nil {
+		logger.Error("Failed to load secrets:", err.Error())
+		return err
+	}
+
+	encryptedValue, err := crypto.Encrypt([]byte(value), s.encryptionKey)
+	if err != nil {
+		logger.Error("Failed to encrypt secret:", err.Error())
+		return err
+	}
+
+	// Find if secret already exists
+	var existingSecret *domain.Secret
+	for i := range secretsData.Secrets {
+		if secretsData.Secrets[i].SecretName == name {
+			existingSecret = &secretsData.Secrets[i]
 			break
 		}
 	}
-	if !found {
-		secret.Version = 1
-		secret.UpdatedAt = time.Now().Format(time.RFC3339)
-		data.Secrets = append(data.Secrets, secret)
+
+	if existingSecret != nil {
+		// Add new version to existing secret
+		newVersion := domain.SecretVersion{
+			SecretValueEnc: encryptedValue,
+			Version:        existingSecret.CurrentVersion + 1,
+			UpdatedAt:      time.Now().Format(time.RFC3339),
+		}
+		existingSecret.Versions = append(existingSecret.Versions, newVersion)
+		existingSecret.CurrentVersion = newVersion.Version
+	} else {
+		// Create new secret with first version
+		newSecret := domain.Secret{
+			SecretName:     name,
+			Type:           domain.SecretType(secretType),
+			CurrentVersion: 1,
+			Versions: []domain.SecretVersion{
+				{
+					SecretValueEnc: encryptedValue,
+					Version:        1,
+					UpdatedAt:      time.Now().Format(time.RFC3339),
+				},
+			},
+		}
+		secretsData.Secrets = append(secretsData.Secrets, newSecret)
 	}
-	data.LastUpdated = time.Now().Format(time.RFC3339)
-	logger.Debug("Saving secrets file after update")
-	return s.saveFile(data)
+
+	secretsData.LastUpdated = time.Now().Format(time.RFC3339)
+	return s.saveFile(secretsData)
+}
+
+// 2a. Edit a secret (creates new version, keeps historical versions)
+func (s *SecretsService) EditSecret(name, newValue string) error {
+	logger.Debug("Editing secret: ", name, " value: ", newValue)
+	secretsData, err := s.LoadAllSecrets()
+	if err != nil {
+		logger.Error("Failed to load secrets:", err.Error())
+		return err
+	}
+
+	// Find the secret to edit
+	var secretToEdit *domain.Secret
+	for i := range secretsData.Secrets {
+		if secretsData.Secrets[i].SecretName == name {
+			secretToEdit = &secretsData.Secrets[i]
+			break
+		}
+	}
+
+	if secretToEdit == nil {
+		logger.Error("Secret not found for editing:", name)
+		return fmt.Errorf("secret '%s' not found", name)
+	}
+
+	// Create a new version of the secret (keep old versions)
+	encryptedValue, err := crypto.Encrypt([]byte(newValue), s.encryptionKey)
+	if err != nil {
+		logger.Error("Failed to encrypt secret:", err.Error())
+		return err
+	}
+
+	// Create a new version
+	newVersion := domain.SecretVersion{
+		SecretValueEnc: encryptedValue,
+		Version:        secretToEdit.CurrentVersion + 1,
+		UpdatedAt:      time.Now().Format(time.RFC3339),
+	}
+
+	// Add the new version to the secret
+	secretToEdit.Versions = append(secretToEdit.Versions, newVersion)
+	secretToEdit.CurrentVersion = newVersion.Version
+	secretsData.LastUpdated = time.Now().Format(time.RFC3339)
+
+	return s.saveFile(secretsData)
 }
 
 // 3. Delete a secret (hard delete)
@@ -149,15 +235,33 @@ func (s *SecretsService) DeleteSecret(secretName string) error {
 	return s.saveFile(data)
 }
 
-// 4. Display (decrypt) a secret value
+// 4. Display (decrypt) a secret value from current version
 func (s *SecretsService) DisplaySecret(secret domain.Secret) (string, error) {
 	logger.Debug("Decrypting secret:", secret.SecretName)
-	plainBytes, err := crypto.Decrypt(secret.SecretValueEnc, s.encryptionKey)
+
+	currentVersion := secret.GetCurrentVersion()
+	if currentVersion == nil {
+		return "", fmt.Errorf("no current version found for secret '%s'", secret.SecretName)
+	}
+
+	plainBytes, err := crypto.Decrypt(currentVersion.SecretValueEnc, s.encryptionKey)
 	if err != nil {
 		logger.Debug("Error decrypting secret:", err.Error())
 		return "", err
 	}
 	logger.Debug("Decrypted secret value for name:", secret.SecretName, " value:", string(plainBytes))
+	return string(plainBytes), nil
+}
+
+// 4a. Decrypt a specific secret version
+func (s *SecretsService) DecryptSecretVersion(version domain.SecretVersion) (string, error) {
+	logger.Debug("Decrypting secret version:", fmt.Sprintf("%d", version.Version))
+
+	plainBytes, err := crypto.Decrypt(version.SecretValueEnc, s.encryptionKey)
+	if err != nil {
+		logger.Debug("Error decrypting secret version:", err.Error())
+		return "", err
+	}
 	return string(plainBytes), nil
 }
 
@@ -178,10 +282,18 @@ func (s *SecretsService) saveFile(data domain.SecretsFile) error {
 func (s *SecretsService) ToBackendSecrets(uiSecrets []domain.SecretView) []domain.Secret {
 	var entries []domain.Secret
 	for _, us := range uiSecrets {
+		// Create a new secret with first version
 		entries = append(entries, domain.Secret{
 			SecretName:     us.SecretName,
 			Type:           domain.SecretType(us.Type),
-			SecretValueEnc: us.SecretValueEnc,
+			CurrentVersion: 1,
+			Versions: []domain.SecretVersion{
+				{
+					SecretValueEnc: us.SecretValueEnc,
+					Version:        1,
+					UpdatedAt:      time.Now().Format(time.RFC3339),
+				},
+			},
 		})
 	}
 	return entries
@@ -197,16 +309,19 @@ func (s *SecretsService) CreateSecretsFile(uiSecrets []domain.SecretView) domain
 	}
 }
 
-// Map backend secrets to UI secrets
+// Map backend secrets to UI secrets (using current version)
 func (s *SecretsService) ToUISecrets(entries []domain.Secret) []domain.SecretView {
 	var uiSecrets []domain.SecretView
 	for _, e := range entries {
-		uiSecrets = append(uiSecrets, domain.SecretView{
-			SecretName:     e.SecretName,
-			Type:           string(e.Type),
-			SecretValueEnc: e.SecretValueEnc,
-			Revealed:       false,
-		})
+		currentVersion := e.GetCurrentVersion()
+		if currentVersion != nil {
+			uiSecrets = append(uiSecrets, domain.SecretView{
+				SecretName:     e.SecretName,
+				Type:           string(e.Type),
+				SecretValueEnc: currentVersion.SecretValueEnc,
+				Revealed:       false,
+			})
+		}
 	}
 	return uiSecrets
 }

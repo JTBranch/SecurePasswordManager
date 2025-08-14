@@ -7,14 +7,14 @@ import (
 )
 
 type Storage struct {
-	mu      sync.RWMutex
-	data    map[string][]byte
+	mu       sync.RWMutex
+	data     map[string][]byte
 	filePath string
 }
 
 func NewStorage(filePath string) (*Storage, error) {
 	s := &Storage{
-		data:    make(map[string][]byte),
+		data:     make(map[string][]byte),
 		filePath: filePath,
 	}
 	if err := s.load(); err != nil {

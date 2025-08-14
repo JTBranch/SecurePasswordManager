@@ -1,0 +1,133 @@
+# GitLab CI Configuration (Alternative to GitHub Actions)
+# Rename this file to .gitlab-ci.yml if using GitLab
+
+stages:
+  - test
+  - build
+  - report
+
+variables:
+  GO_VERSION: "1.21"
+  CGO_ENABLED: "0"
+
+# Cache Go modules
+.go-cache: &go-cache
+  cache:
+    key: "${CI_JOB_NAME}-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - .cache/go-build/
+      - .cache/go-mod/
+
+before_script:
+  - mkdir -p .cache/go-build .cache/go-mod tmp/output
+  - export GOPATH="$CI_PROJECT_DIR/.cache/go-mod"
+  - export GOCACHE="$CI_PROJECT_DIR/.cache/go-build"
+
+test:
+  stage: test
+  image: golang:${GO_VERSION}
+  <<: *go-cache
+  script:
+    - echo "🔍 Running code analysis..."
+    - go vet ./... 2>&1 | tee tmp/output/vet-report.txt
+    
+    - echo "📦 Installing dependencies..."
+    - go mod download
+    - go mod verify
+    
+    - echo "🧪 Running unit tests with coverage..."
+    - go test -v -race -coverprofile=tmp/output/coverage.out -covermode=atomic 
+        ./internal/... ./ui/... 
+        -json > tmp/output/unit-test-results.json
+    
+    - echo "📊 Generating coverage reports..."
+    - go tool cover -html=tmp/output/coverage.out -o tmp/output/coverage.html
+    - go tool cover -func=tmp/output/coverage.out > tmp/output/coverage-summary.txt
+    
+    - echo "🔄 Running E2E tests..."
+    - go test -v ./tests/e2e/... > tmp/output/e2e-test-output.txt 2>&1 || true
+    
+    - echo "📈 Extracting coverage percentage..."
+    - COVERAGE=$(go tool cover -func=tmp/output/coverage.out | grep total | awk '{print $3}')
+    - echo "Total Coverage = $COVERAGE" >> tmp/output/coverage-summary.txt
+    
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: tmp/output/coverage.xml
+    paths:
+      - tmp/output/
+    expire_in: 30 days
+    when: always
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+
+build:
+  stage: build
+  image: golang:${GO_VERSION}
+  <<: *go-cache
+  script:
+    - echo "🏗️ Building application for multiple platforms..."
+    - GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o tmp/output/password-manager-linux ./cmd/main.go
+    - GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o tmp/output/password-manager-macos ./cmd/main.go
+    - GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o tmp/output/password-manager-windows.exe ./cmd/main.go
+    
+    - echo "📄 Generating build info..."
+    - |
+      cat > tmp/output/build-info.txt << EOF
+      Build Information
+      =================
+      Date: $(date)
+      Commit: ${CI_COMMIT_SHA}
+      Branch: ${CI_COMMIT_REF_NAME}
+      Pipeline: ${CI_PIPELINE_ID}
+      Go Version: $(go version)
+      
+      Built Artifacts:
+      - password-manager-linux (Linux AMD64)
+      - password-manager-macos (macOS AMD64)  
+      - password-manager-windows.exe (Windows AMD64)
+      EOF
+  artifacts:
+    paths:
+      - tmp/output/
+    expire_in: 30 days
+  dependencies:
+    - test
+
+generate-report:
+  stage: report
+  image: alpine:latest
+  script:
+    - echo "📊 Generating final CI report..."
+    - |
+      cat > tmp/output/ci-report.md << EOF
+      # CI Pipeline Report
+      
+      **Pipeline ID:** ${CI_PIPELINE_ID}
+      **Commit:** ${CI_COMMIT_SHA}
+      **Branch:** ${CI_COMMIT_REF_NAME}
+      **Date:** $(date)
+      
+      ## Test Results
+      - Unit Tests: Check unit-test-results.json
+      - E2E Tests: Check e2e-test-output.txt
+      - Coverage: Check coverage-summary.txt
+      
+      ## Build Artifacts
+      - Linux Binary: password-manager-linux
+      - macOS Binary: password-manager-macos
+      - Windows Binary: password-manager-windows.exe
+      
+      ## Reports Available
+      - HTML Coverage: coverage.html
+      - Coverage Summary: coverage-summary.txt
+      - Vet Report: vet-report.txt
+      EOF
+  artifacts:
+    paths:
+      - tmp/output/
+    expire_in: 30 days
+  dependencies:
+    - test
+    - build
