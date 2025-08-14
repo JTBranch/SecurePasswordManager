@@ -1,0 +1,39 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - 'patch'
+          - 'minor'
+          - 'major'
+          - 'prerelease'
+      skip_ci:
+        description: 'Skip CI checks (not recommended)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  run-ci-first:
+    name: Run CI Checks
+    if: ${{ !inputs.skip_ci }}
+    uses: ./.github/workflows/ci.yml
+
+  create-release:
+    name: Create Release
+    needs: [run-ci-first]
+    if: always() && (needs.run-ci-first.result == 'success' || inputs.skip_ci)
+    uses: ./.github/workflows/release.yml
+    with:
+      version_bump: ${{ inputs.version_bump }}
+    secrets: inherit
