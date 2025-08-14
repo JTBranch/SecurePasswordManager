@@ -32,7 +32,27 @@ Install dependencies:
 go mod tidy
 ```
 
-### Running the App
+### Environment Variables
+
+You can control where secrets are stored using the `GO_PASSWORD_MANAGER_ENV` environment variable:
+
+- **Development/Testing (default):**
+  - `secrets.json` is stored in the project root and tracked by git (for easy inspection).
+- **Production:**
+  - Set `GO_PASSWORD_MANAGER_ENV=prod` before running the app.
+  - `secrets.json` will be stored in your OS user config directory:
+    - **macOS/Linux:** `~/Library/Application Support/GoPasswordManager/secrets.json` (macOS) or `~/.config/GoPasswordManager/secrets.json` (Linux)
+    - **Windows:** `%APPDATA%\GoPasswordManager\secrets.json`
+  - This file is never tracked by git and is protected by OS file permissions.
+
+#### Example: Running in Production
+
+```sh
+export GO_PASSWORD_MANAGER_ENV=prod
+go run cmd/main.go
+```
+
+#### Example: Running in Development
 
 ```sh
 go run cmd/main.go

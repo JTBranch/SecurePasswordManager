@@ -38,7 +38,26 @@ func NewSecretsService(appVersion, appUser string) *SecretsService {
 	if err != nil {
 		logger.Error("Failed to load encryption key:", err.Error())
 	}
-	filePath := filepath.Join(".", secretsFile)
+
+	env := os.Getenv("GO_PASSWORD_MANAGER_ENV")
+	var filePath string
+	if env == "prod" {
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			logger.Error("Failed to get user config dir:", err.Error())
+			filePath = filepath.Join(".", secretsFile) // fallback
+		} else {
+			appConfigDir := filepath.Join(configDir, "GoPasswordManager")
+			if err := os.MkdirAll(appConfigDir, 0700); err != nil {
+				logger.Error("Failed to create app config dir:", err.Error())
+				filePath = filepath.Join(".", secretsFile) // fallback
+			} else {
+				filePath = filepath.Join(appConfigDir, secretsFile)
+			}
+		}
+	} else {
+		filePath = filepath.Join(".", secretsFile)
+	}
 	ensureSecretsFileExists(filePath, appVersion, appUser)
 	return &SecretsService{
 		AppVersion:    appVersion,
