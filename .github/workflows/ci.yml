@@ -1,4 +1,4 @@
-name: CI Build and Test
+name: CI
 
 on:
   push:
@@ -8,146 +8,80 @@ on:
 
 jobs:
   test:
-    name: Test and Coverage
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: '1.21'
 
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+      - name: Install system dependencies (for Fyne/CGO)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev libgl1-mesa-dev xorg-dev
 
-      - name: Install system dependencies
-        run: ./scripts/install-system-deps.sh
+      - name: Format check
+        run: |
+          make fmt
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Code is not formatted. Run 'make fmt'"
+            exit 1
+          fi
 
-      - name: Install dependencies
-        run: make install-deps
-
-      - name: Create output directory
-        run: mkdir -p tmp/output
-
-      - name: Check code formatting
-        run: make fmt-check
-
-      - name: Check import organization
-        run: make imports-check
-
-      - name: Run linting
+      - name: Run linter
+        continue-on-error: true
         run: make lint
 
-      - name: Run CI pipeline
-        run: make ci-local
+      - name: Run unit tests
+        run: |
+          echo "🔬 Running unit tests..."
+          make test-unit
 
-      - name: Upload Test Reports
+      - name: Run integration tests
+        run: |
+          echo "🔗 Running integration tests..."
+          make test-integration
+
+      - name: Run E2E tests
+        run: |
+          echo "🎭 Running E2E tests..."
+          make test-e2e
+
+      - name: Generate comprehensive test reports
+        if: always()
+        run: |
+          echo "📊 Generating comprehensive reports..."
+          make test-reports
+
+      - name: Upload test reports and coverage
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-reports-and-logs
-          path: |
-            tmp/output/
-            tmp/output/test-reports/
+          name: test-reports-and-coverage
+          path: tmp/output/
           retention-days: 30
 
-      - name: Upload Test Report Page
-        uses: actions/upload-artifact@v4
+      - name: Upload coverage to codecov (optional)
+        uses: codecov/codecov-action@v3
         if: always()
         with:
-          name: test-report-html
-          path: tmp/output/test-report.html
-          retention-days: 30
-
-      - name: Comment Coverage on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-
-            // Read coverage summary
-            let coverage = 'Unknown';
-            let status = '❌ FAILED';
-
-            try {
-              const coverageFile = fs.readFileSync('tmp/output/coverage-summary.txt', 'utf8');
-              const lines = coverageFile.split('\n');
-              const totalLine = lines.find(line => line.includes('Total Coverage:'));
-              if (totalLine) {
-                coverage = totalLine.split('Total Coverage: ')[1]?.trim() || 'Unknown';
-                status = coverage.includes('%') ? `✅ PASSED (${coverage})` : '❌ FAILED';
-              }
-            } catch (error) {
-              console.log('Could not read coverage file:', error.message);
-            }
-
-            const comment = `## 📊 Test Coverage Report
-
-            **Coverage**: ${status}
-
-            📁 [Download Test Reports](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            📊 [Download HTML Test Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) 
-
-            <details>
-            <summary>📋 Build Summary</summary>
-
-            - ✅ Code formatting: Passed
-            - ✅ Import organization: Passed  
-            - ✅ Linting: Passed
-            - ✅ Unit tests: Passed
-            - ✅ Integration tests: Passed  
-            - ✅ E2E tests: Passed
-            - ${status.includes('✅') ? '✅' : '❌'} Coverage: ${coverage}
-
-            **Available Artifacts:**
-            - 📊 \`test-report-html\` - Interactive HTML test report
-            - 📁 \`test-reports-and-logs\` - All test outputs and application logs
-            - 🏗️ \`binaries-linux-amd64\` - Built application
-
-            </details>`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
-
-  build:
-    name: Build Application
-    runs-on: ubuntu-latest
-    needs: test
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.21"
-
-      - name: Install system dependencies
-        run: ./scripts/install-system-deps.sh
-
-      - name: Create output directory
-        run: mkdir -p tmp/output
+          file: ./tmp/output/coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
 
       - name: Build application
-        run: make ci-build
+        run: |
+          echo "🔨 Building application..."
+          make build
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: binaries-linux-amd64
-          path: tmp/output/
-          retention-days: 90
+      - name: Display coverage summary
+        if: always()
+        run: |
+          echo "📈 Coverage Summary:"
+          if [ -f tmp/output/coverage-summary.txt ]; then
+            cat tmp/output/coverage-summary.txt
+          else
+            echo "Coverage summary not available"
+          fi

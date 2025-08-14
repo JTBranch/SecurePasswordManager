@@ -15,7 +15,20 @@ The development process leverages AI assistance for:
 
 The goal is to demonstrate that AI-assisted development, under proper human guidance and supervision, can produce enterprise-grade software while maintaining code quality, security, and maintainability standards typically expected in production environments.
 
-## Features
+## Quick Start
+
+```bash
+# Development
+make dev          # Run in development mode
+make build        # Build binary
+make test         # Run tests
+
+# Releases (requires GitHub CLI)
+make version      # Show current version  
+make release-patch    # v1.0.0 -> v1.0.1
+make release-minor    # v1.0.0 -> v1.1.0
+make release-major    # v1.0.0 -> v2.0.0
+```
 
 - **Secure Local Storage**: AES encrypted secrets stored locally
 - **Version History**: Full version tracking with ability to view previous secret values
