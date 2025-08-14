@@ -12,6 +12,7 @@ This project uses a **Make-first approach** to CI/CD, ensuring complete consiste
 ## 🚀 **Available Make Targets**
 
 ### **Development**
+
 ```bash
 make dev              # Run in development mode
 make build            # Build with auto-formatting
@@ -20,6 +21,7 @@ make ci-build         # CI build target
 ```
 
 ### **Code Quality**
+
 ```bash
 make fmt              # Format code and organize imports
 make fmt-check        # Check formatting (no changes)
@@ -28,6 +30,7 @@ make lint             # Run go vet + golint
 ```
 
 ### **Testing**
+
 ```bash
 make test             # Run all tests
 make coverage         # Generate coverage report
@@ -36,6 +39,7 @@ make ci-local         # Full CI pipeline locally
 ```
 
 ### **CI Components**
+
 ```bash
 make ci-test          # Run tests for CI
 make ci-coverage      # Generate coverage for CI
@@ -45,6 +49,7 @@ make ci-build         # Build for CI
 ## 🔄 **CI Pipeline Flow**
 
 ### **GitHub Actions Workflow**
+
 1. **Setup**: Checkout code, setup Go, install deps
 2. **Code Quality Checks**:
    - `make fmt-check` - Verify formatting
@@ -55,6 +60,7 @@ make ci-build         # Build for CI
 5. **Artifacts**: Upload test reports and binaries
 
 ### **Local Development**
+
 ```bash
 # Quick checks
 make fmt-check && make lint
@@ -68,46 +74,51 @@ make fmt && make build
 
 ## 📋 **Make vs GitHub Actions**
 
-| Task | Local Command | GitHub Actions | Notes |
-|------|---------------|----------------|-------|
-| Format Check | `make fmt-check` | `make fmt-check` | ✅ Identical |
+| Task         | Local Command        | GitHub Actions       | Notes        |
+| ------------ | -------------------- | -------------------- | ------------ |
+| Format Check | `make fmt-check`     | `make fmt-check`     | ✅ Identical |
 | Import Check | `make imports-check` | `make imports-check` | ✅ Identical |
-| Linting | `make lint` | `make lint` | ✅ Identical |
-| Full CI | `make ci-local` | `make ci-local` | ✅ Identical |
-| Build | `make ci-build` | `make ci-build` | ✅ Identical |
+| Linting      | `make lint`          | `make lint`          | ✅ Identical |
+| Full CI      | `make ci-local`      | `make ci-local`      | ✅ Identical |
+| Build        | `make ci-build`      | `make ci-build`      | ✅ Identical |
 
 ## ⚙️ **CI Configuration**
 
 ### **Current Triggers**
+
 - Push to `main` or `develop` branches
 - Pull requests to `main` branch
 
 ### **CI Jobs**
+
 1. **Test Job**: Runs all quality checks and tests
 2. **Build Job**: Creates Linux binary (depends on test job)
 
 ### **Artifacts**
+
 - **test-reports**: Coverage reports, test results, lint reports
 - **binaries-linux-amd64**: Compiled application
 
 ## 🐛 **Debugging CI Issues**
 
 ### **1. Reproduce Locally**
+
 ```bash
 # Run the exact same commands as CI
 make install-deps
 make fmt-check
-make imports-check  
+make imports-check
 make lint
 make ci-local
 ```
 
 ### **2. Check Specific Issues**
+
 ```bash
 # Formatting issues
 make fmt-check
 
-# Coverage issues  
+# Coverage issues
 make coverage-check
 
 # Build issues
@@ -115,6 +126,7 @@ make ci-build
 ```
 
 ### **3. Fix and Verify**
+
 ```bash
 # Auto-fix formatting
 make fmt
@@ -126,6 +138,7 @@ make ci-local
 ## 📊 **Current CI Status**
 
 ### **Checks Enforced**
+
 - ✅ **Code Formatting**: Must be `gofmt` compliant
 - ✅ **Import Organization**: Must be `goimports` compliant
 - ✅ **Code Quality**: `go vet` must pass
@@ -135,6 +148,7 @@ make ci-local
 - ⚠️ **Linting**: 53 golint issues (non-blocking)
 
 ### **Build Outputs**
+
 - Linux AMD64 binary (Ubuntu runner)
 - Coverage reports (HTML, text, JSON)
 - Test results (JSON)
@@ -143,12 +157,14 @@ make ci-local
 ## 🎯 **Benefits of This Approach**
 
 ### **For Developers**
+
 - ✅ **Predictable**: Local commands work exactly like CI
 - ✅ **Fast Debugging**: Reproduce CI issues instantly
 - ✅ **Consistent**: No CI-specific surprises
 - ✅ **Self-Documenting**: `make help` shows all options
 
 ### **For CI/CD**
+
 - ✅ **Simple YAML**: Minimal GitHub Actions configuration
 - ✅ **Maintainable**: Logic lives in Makefile, not YAML
 - ✅ **Flexible**: Easy to add new checks via Make targets
@@ -165,12 +181,14 @@ make ci-local
 ## 💡 **Adding New CI Checks**
 
 1. **Add Make Target**:
+
    ```makefile
    security-check:
        gosec ./...
    ```
 
 2. **Update CI Workflow**:
+
    ```yaml
    - name: Run security check
      run: make security-check

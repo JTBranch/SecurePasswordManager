@@ -7,6 +7,10 @@ dev:
 
 # Watch mode for development (requires air to be installed)
 dev-watch:
+	@if ! command -v air &> /dev/null; then \
+		echo "❌ Air not found. Installing air for watch mode..."; \
+		go install github.com/air-verse/air@latest; \
+	fi
 	GO_PASSWORD_MANAGER_ENV=dev air
 
 # Build the application (with auto-formatting)
@@ -125,14 +129,16 @@ clean:
 	rm -f main tmp/main
 	rm -rf tmp/output/*
 
-# Install development dependencies
+# Install CI/build dependencies (no air - it's for local dev only)
 install-deps:
-	go install github.com/cosmtrek/air@latest
 	go install golang.org/x/lint/golint@latest
 	go install golang.org/x/tools/cmd/goimports@latest
-	go install github.com/axw/gocov/gocov@latest
-	go install github.com/AlekSi/gocov-xml@latest
-	go install github.com/matm/gocov-html@latest
+
+# Install local development dependencies (including air for watch mode)
+install-dev-deps:
+	go install golang.org/x/lint/golint@latest
+	go install golang.org/x/tools/cmd/goimports@latest
+	go install github.com/air-verse/air@latest
 
 # Install git pre-commit hook for auto-formatting
 install-hooks:
@@ -159,6 +165,7 @@ uninstall-hooks:
 help:
 	@echo "Available targets:"
 	@echo "  dev              - Run in development mode"
+	@echo "  dev-watch        - Run in watch mode (auto-reloads on changes)"
 	@echo "  build            - Build the application (auto-formats code first)"
 	@echo "  test             - Run all tests"
 	@echo "  fmt              - Format code and organize imports"
@@ -167,6 +174,8 @@ help:
 	@echo "  coverage-check   - Check coverage meets threshold (MIN_COVERAGE=$(MIN_COVERAGE)%)"
 	@echo "  ci-local         - Run full CI pipeline locally"
 	@echo "  lint             - Run code quality checks"
+	@echo "  install-deps     - Install CI/build dependencies"
+	@echo "  install-dev-deps - Install all development dependencies (including air)"
 	@echo "  install-hooks    - Install git pre-commit hook for auto-formatting"
 	@echo "  uninstall-hooks  - Remove git pre-commit hook"
 	@echo "  clean            - Clean build artifacts"
@@ -180,4 +189,4 @@ help:
 	@echo "  make install-hooks                    # Install pre-commit formatting"
 	@echo "  make ci-local                         # Run full CI pipeline"
 
-.PHONY: dev dev-watch build build-only build-cross run test unitTest e2eTest coverage coverage-check fmt fmt-check imports-check ci-local ci-test ci-coverage ci-build lint clean install-deps install-hooks uninstall-hooks help
+.PHONY: dev dev-watch build build-only build-cross run test unitTest e2eTest coverage coverage-check fmt fmt-check imports-check ci-local ci-test ci-coverage ci-build lint clean install-deps install-dev-deps install-hooks uninstall-hooks help

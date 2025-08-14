@@ -5,10 +5,12 @@ This project enforces consistent code formatting and style using Go's built-in t
 ## 🎨 Auto-Formatting Tools
 
 ### **gofmt** - Standard Go Formatter
+
 - Formats Go code according to Go standards
 - Handles indentation, spacing, and basic formatting
 
 ### **goimports** - Import Organization
+
 - Automatically organizes imports
 - Removes unused imports
 - Adds missing imports
@@ -17,6 +19,7 @@ This project enforces consistent code formatting and style using Go's built-in t
 ## 🚀 Usage
 
 ### **Manual Formatting**
+
 ```bash
 # Format all code and organize imports
 make fmt
@@ -29,6 +32,7 @@ make imports-check
 ```
 
 ### **Auto-Format on Build**
+
 ```bash
 # Build automatically formats code first
 make build
@@ -38,6 +42,7 @@ make build-only
 ```
 
 ### **Pre-Commit Hook** ⭐
+
 ```bash
 # Install pre-commit hook (recommended!)
 make install-hooks
@@ -47,6 +52,7 @@ make uninstall-hooks
 ```
 
 The pre-commit hook will:
+
 - ✅ Automatically format your code before each commit
 - ✅ Organize imports properly
 - ✅ Stage the formatted files
@@ -55,17 +61,21 @@ The pre-commit hook will:
 ## 🔍 CI/CD Integration
 
 ### **Local CI**
+
 ```bash
 # Full CI with formatting checks
 make ci-local
 ```
 
 ### **GitHub Actions**
+
 Formatting is automatically checked on:
+
 - Every push to `main` or `develop`
 - Every pull request to `main`
 
 Builds will **fail** if:
+
 - Code is not properly formatted
 - Imports are not organized
 - Coverage is below threshold
@@ -73,6 +83,7 @@ Builds will **fail** if:
 ## 📋 What Gets Checked
 
 ### ✅ **Formatting Rules**
+
 - Consistent indentation (tabs)
 - Proper spacing around operators
 - Consistent brace placement
@@ -80,17 +91,18 @@ Builds will **fail** if:
 - Comment formatting
 
 ### ✅ **Import Organization**
+
 ```go
 // Correct import order:
 import (
     // 1. Standard library
     "fmt"
     "os"
-    
+
     // 2. External packages
     "fyne.io/fyne/v2/app"
     "github.com/example/package"
-    
+
     // 3. Local packages
     "go-password-manager/internal/config"
     "go-password-manager/ui/molecules"
@@ -98,6 +110,7 @@ import (
 ```
 
 ### ✅ **Code Quality Checks**
+
 - `go vet` - Static analysis
 - `golint` - Style recommendations (53 current issues)
 - Coverage enforcement (25%+ required)
@@ -105,11 +118,13 @@ import (
 ## 🛠️ Setup for New Developers
 
 1. **Install dependencies:**
+
    ```bash
    make install-deps
    ```
 
 2. **Install pre-commit hook:**
+
    ```bash
    make install-hooks
    ```
@@ -123,12 +138,15 @@ import (
 ## 💡 Best Practices
 
 ### **Before Committing**
+
 - Run `make fmt` or rely on pre-commit hook
 - Check `make fmt-check` passes
 - Ensure `make ci-local` succeeds
 
 ### **Editor Integration**
+
 Configure your editor to:
+
 - Run `gofmt` on save
 - Run `goimports` on save
 - Show `go vet` results
@@ -137,6 +155,7 @@ Configure your editor to:
 ### **Popular Editor Settings**
 
 **VS Code** (`.vscode/settings.json`):
+
 ```json
 {
   "go.formatTool": "goimports",
@@ -151,7 +170,7 @@ Configure your editor to:
 ## 📊 Current Status
 
 - **Formatting**: ✅ All files properly formatted
-- **Imports**: ✅ All imports organized  
+- **Imports**: ✅ All imports organized
 - **Linting**: ⚠️ 53 issues to address (non-blocking)
 - **Pre-commit**: ✅ Hook installed and active
 
