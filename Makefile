@@ -134,6 +134,17 @@ install-deps:
 	go install golang.org/x/lint/golint@latest
 	go install golang.org/x/tools/cmd/goimports@latest
 
+# Install system dependencies for Fyne (Ubuntu/Debian only)
+install-system-deps:
+	@if command -v apt-get &> /dev/null; then \
+		echo "📦 Installing system dependencies for Fyne..."; \
+		./scripts/install-system-deps.sh; \
+	else \
+		echo "ℹ️ System dependency installation only supported on Ubuntu/Debian"; \
+		echo "💡 On macOS: System dependencies are typically pre-installed"; \
+		echo "💡 On other systems: Install OpenGL and X11 development libraries manually"; \
+	fi
+
 # Install local development dependencies (including air for watch mode)
 install-dev-deps:
 	go install golang.org/x/lint/golint@latest
@@ -175,6 +186,7 @@ help:
 	@echo "  ci-local         - Run full CI pipeline locally"
 	@echo "  lint             - Run code quality checks"
 	@echo "  install-deps     - Install CI/build dependencies"
+	@echo "  install-system-deps - Install system dependencies for Fyne (Ubuntu/Debian)"
 	@echo "  install-dev-deps - Install all development dependencies (including air)"
 	@echo "  install-hooks    - Install git pre-commit hook for auto-formatting"
 	@echo "  uninstall-hooks  - Remove git pre-commit hook"
@@ -189,4 +201,4 @@ help:
 	@echo "  make install-hooks                    # Install pre-commit formatting"
 	@echo "  make ci-local                         # Run full CI pipeline"
 
-.PHONY: dev dev-watch build build-only build-cross run test unitTest e2eTest coverage coverage-check fmt fmt-check imports-check ci-local ci-test ci-coverage ci-build lint clean install-deps install-dev-deps install-hooks uninstall-hooks help
+.PHONY: dev dev-watch build build-only build-cross run test unitTest e2eTest coverage coverage-check fmt fmt-check imports-check ci-local ci-test ci-coverage ci-build lint clean install-deps install-system-deps install-dev-deps install-hooks uninstall-hooks help
