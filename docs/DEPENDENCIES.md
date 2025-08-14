@@ -44,7 +44,7 @@ Additional tools for local development:
 System libraries required for Fyne applications (Ubuntu/Debian):
 
 - **libgl1-mesa-dev** - OpenGL development files
-- **xorg-dev** - X.Org development files  
+- **xorg-dev** - X.Org development files
 - **libx11-dev** - X11 client-side library
 - **libxcursor-dev** - X cursor management library
 - **libxrandr-dev** - X RandR extension library
@@ -166,23 +166,25 @@ make install-dev-deps
 If you see errors like `fatal error: X11/Xlib.h: No such file or directory`:
 
 **Ubuntu/Debian**:
+
 ```bash
 make install-system-deps
 ```
 
 **Other Linux Distributions**:
+
 ```bash
 # Fedora/RHEL
 sudo dnf install libX11-devel libXcursor-devel libXrandr-devel libXinerama-devel libXi-devel libGL-devel
 
-# Arch Linux  
+# Arch Linux
 sudo pacman -S libx11 libxcursor libxrandr libxinerama libxi mesa
 
 # Alpine Linux
 sudo apk add libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev mesa-dev
 ```
 
-**macOS/Windows**: 
+**macOS/Windows**:
 These errors typically don't occur as system dependencies are pre-installed.
 
 ## 📊 Current Status
