@@ -16,8 +16,15 @@ echo "Version: ${VERSION}"
 echo "Commit: ${COMMIT}"
 echo "Date: ${DATE}"
 
-echo "Installing Fyne CLI..."
-go install fyne.io/fyne/v2/cmd/fyne@latest
+echo "Installing tools..."
+# Only install fyne-cross if we're not on macOS (since we'll use native builds there)
+if [[ "$OSTYPE" != "darwin"* ]]; then
+  echo "Installing fyne-cross for Linux/Windows builds..."
+  go install github.com/fyne-io/fyne-cross@latest
+fi
+
+# We don't need the regular fyne CLI since we're using direct go build for macOS
+# and fyne-cross handles packaging for other platforms
 
 # Add fyne-cross to path if not already there
 export PATH=$PATH:$(go env GOPATH)/bin
@@ -30,10 +37,21 @@ echo "Building Linux binary..."
 fyne-cross linux -arch=amd64 --app-id go-password-manager ./cmd
 
 echo "Building macOS binary..."
-# Skip macOS builds for now due to SDK path requirements in fyne-cross
-# TODO: Configure macOS SDK properly for Darwin builds
-echo "Skipping macOS build temporarily due to SDK configuration requirements"
-# fyne-cross darwin -arch=arm64 --app-id go-password-manager --macosx-version-min=10.15 ./cmd
+# Build for macOS (requires macOS development environment)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  # We're on macOS, can build directly with CGO
+  echo "Building macOS ARM64..."
+  mkdir -p fyne-cross/bin/darwin-arm64
+  CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o "fyne-cross/bin/darwin-arm64/go-password-manager" ./cmd
+  
+  echo "Building macOS AMD64..."
+  mkdir -p fyne-cross/bin/darwin-amd64
+  CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -o "fyne-cross/bin/darwin-amd64/go-password-manager" ./cmd
+  
+  echo "✓ macOS builds completed"
+else
+  echo "Warning: macOS builds require macOS host (skipping)"
+fi
 
 echo "Building Windows binary..."
 fyne-cross windows -arch=amd64 --app-id go-password-manager ./cmd

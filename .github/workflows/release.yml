@@ -28,10 +28,65 @@ on:
         type: string
 
 jobs:
-  build-and-release:
-    name: Build and Release
+  version:
+    name: Determine Version
     runs-on: ubuntu-latest
     if: always() && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call')
+    outputs:
+      version: ${{ steps.tag_version.outputs.new_tag }}
+      changelog: ${{ steps.tag_version.outputs.changelog }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version bump
+        id: version-bump
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "workflow_call" ]; then
+            VERSION_BUMP="${{ inputs.version_bump }}"
+          else
+            LATEST_COMMIT=$(git log -1 --pretty=format:"%s %b")
+            echo "Latest commit: $LATEST_COMMIT"
+            
+            if echo "$LATEST_COMMIT" | grep -q "BREAKING CHANGE\|feat!:"; then
+              VERSION_BUMP="major"
+            elif echo "$LATEST_COMMIT" | grep -q "^feat:"; then
+              VERSION_BUMP="minor"
+            elif echo "$LATEST_COMMIT" | grep -q "^fix:"; then
+              VERSION_BUMP="patch"
+            else
+              VERSION_BUMP="patch"
+            fi
+          fi
+
+          echo "version-bump=$VERSION_BUMP" >> $GITHUB_OUTPUT
+          echo "Detected version bump: $VERSION_BUMP"
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: anothrNick/github-tag-action@1.67.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          RELEASE_BRANCHES: main
+          DEFAULT_BUMP: ${{ steps.version-bump.outputs.version-bump }}
+
+  build:
+    name: Build
+    needs: version
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-windows
+            script: build.sh
+          - os: macos-latest
+            name: macos
+            script: build-macos.sh
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: write
       packages: write
@@ -47,17 +102,22 @@ jobs:
         with:
           go-version: "1.22"
 
-      - name: Install Fyne and fyne-cross
+      - name: Install dependencies
         run: |
-          # Wait for any existing apt processes to finish
-          while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-            echo "Waiting for apt lock to be released..."
-            sleep 5
-          done
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            # Wait for any existing apt processes to finish
+            while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+              echo "Waiting for apt lock to be released..."
+              sleep 5
+            done
 
-          sudo apt-get update
-          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
-          go install github.com/fyne-io/fyne-cross@latest
+            sudo apt-get update
+            sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
+            go install github.com/fyne-io/fyne-cross@latest
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            # macOS already has required dependencies for native builds
+            echo "macOS runner ready for native builds"
+          fi
 
       - name: Determine version bump
         id: version-bump
@@ -97,19 +157,58 @@ jobs:
         run: |
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          VERSION=${{ steps.tag_version.outputs.new_tag }}
+          VERSION=${{ needs.version.outputs.version }}
 
-          chmod +x ./scripts/build.sh
-          ./scripts/build.sh "$VERSION" "$COMMIT" "$DATE"
+          chmod +x ./scripts/${{ matrix.script }}
+          ./scripts/${{ matrix.script }} "$VERSION" "$COMMIT" "$DATE"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.name }}
+          path: dist/
+
+  release:
+    name: Create Release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          # Copy Linux and Windows binaries
+          cp artifacts/binaries-linux-windows/password-manager-linux-amd64 release-files/
+          cp artifacts/binaries-linux-windows/password-manager-windows-amd64.exe release-files/
+          # Copy macOS binaries
+          cp artifacts/binaries-macos/macos-arm64/go-password-manager release-files/go-password-manager-macos-arm64
+          cp artifacts/binaries-macos/macos-amd64/go-password-manager release-files/go-password-manager-macos-amd64
+          
+          ls -la release-files/
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag_version.outputs.new_tag }}
-          name: Release ${{ steps.tag_version.outputs.new_tag }}
-          body: ${{ steps.tag_version.outputs.changelog }}
+          tag_name: ${{ needs.version.outputs.version }}
+          name: Release ${{ needs.version.outputs.version }}
+          body: ${{ needs.version.outputs.changelog }}
           files: |
-            dist/password-manager-linux-amd64
-            dist/password-manager-windows-amd64.exe
+            release-files/password-manager-linux-amd64
+            release-files/password-manager-windows-amd64.exe
+            release-files/go-password-manager-macos-arm64
+            release-files/go-password-manager-macos-amd64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
