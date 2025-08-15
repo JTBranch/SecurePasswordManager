@@ -93,9 +93,13 @@ jobs:
           # Add fyne-cross to path
           export PATH=$PATH:$(go env GOPATH)/bin
           
-          fyne-cross linux -arch=amd64 --ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}"
-          fyne-cross darwin -arch=arm64 --ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}"
-          fyne-cross windows -arch=amd64 --ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}"
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          LD_FLAGS="-X main.version=${{ steps.tag_version.outputs.new_tag }} -X main.commit=$COMMIT -X main.date=$DATE"
+
+          fyne-cross linux -arch=amd64 --ldflags "$LD_FLAGS"
+          fyne-cross darwin -arch=arm64 --ldflags "$LD_FLAGS"
+          fyne-cross windows -arch=amd64 --ldflags "$LD_FLAGS"
           
           # The binaries will be in the fyne-cross/bin directory
           # We can move them to dist for consistency
@@ -107,7 +111,7 @@ jobs:
           # Make binaries executable
           chmod +x dist/password-manager-linux-amd64
           chmod +x dist/password-manager-macos-arm64
-          
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:

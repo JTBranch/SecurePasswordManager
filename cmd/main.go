@@ -10,10 +10,9 @@ import (
 	"go-password-manager/ui"
 )
 
-// Build-time variables (set via -ldflags)
 var (
-	version = "dev"
-	commit  = "unknown"
+	version = "development"
+	commit  = "none"
 	date    = "unknown"
 )
 
