@@ -29,7 +29,7 @@ on:
 
 jobs:
   version:
-    name: Determine Version
+    name: Determine Version and Tag
     runs-on: ubuntu-latest
     if: always() && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call')
     outputs:
@@ -41,6 +41,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Debug runner information
+        run: |
+          echo "Runner OS: $RUNNER_OS"
+          echo "Runner architecture: $RUNNER_ARCH"
+          echo "GitHub event: ${{ github.event_name }}"
 
       - name: Determine version bump
         id: version-bump
@@ -67,7 +73,7 @@ jobs:
 
       - name: Bump version and push tag
         id: tag_version
-        uses: anothrNick/github-tag-action@1.67.0
+        uses: anothrNick/github-tag-action@1.70.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
@@ -128,40 +134,6 @@ jobs:
             # macOS already has required dependencies for native builds
             echo "macOS runner ready for native builds"
           fi
-
-      - name: Determine version bump
-        id: version-bump
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "workflow_call" ]; then
-            # Manual trigger - use provided input
-            VERSION_BUMP="${{ inputs.version_bump }}"
-          else
-            # Automatic trigger - detect from commit messages
-            LATEST_COMMIT=$(git log -1 --pretty=format:"%s %b")
-            echo "Latest commit: $LATEST_COMMIT"
-            
-            if echo "$LATEST_COMMIT" | grep -q "BREAKING CHANGE\|feat!:"; then
-              VERSION_BUMP="major"
-            elif echo "$LATEST_COMMIT" | grep -q "^feat:"; then
-              VERSION_BUMP="minor"
-            elif echo "$LATEST_COMMIT" | grep -q "^fix:"; then
-              VERSION_BUMP="patch"
-            else
-              VERSION_BUMP="patch"  # Default for other commit types
-            fi
-          fi
-
-          echo "version-bump=$VERSION_BUMP" >> $GITHUB_OUTPUT
-          echo "Detected version bump: $VERSION_BUMP"
-
-      - name: Bump version and push tag
-        id: tag_version
-        uses: anothrNick/github-tag-action@1.67.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WITH_V: true
-          RELEASE_BRANCHES: main
-          DEFAULT_BUMP: ${{ steps.version-bump.outputs.version-bump }}
 
       - name: Build binaries via script
         run: |
