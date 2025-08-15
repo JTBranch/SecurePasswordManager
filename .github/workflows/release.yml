@@ -49,9 +49,14 @@ jobs:
 
       - name: Install Fyne and fyne-cross
         run: |
+          # Wait for any existing apt processes to finish
+          while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+            echo "Waiting for apt lock to be released..."
+            sleep 5
+          done
+          
           sudo apt-get update
           sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
-          go install github.com/fyne-io/fyne-cross@latest
           go install github.com/fyne-io/fyne-cross@latest
 
       - name: Determine version bump
