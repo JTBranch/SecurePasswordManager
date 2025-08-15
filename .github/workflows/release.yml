@@ -81,8 +81,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            name: linux-windows
-            script: build.sh
+            name: linux
+            script: build-linux.sh
+          - os: ubuntu-latest
+            name: windows
+            script: build-windows.sh
           - os: macos-latest
             name: macos
             script: build-macos.sh
@@ -113,7 +116,11 @@ jobs:
 
             sudo apt-get update
             sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
-            go install github.com/fyne-io/fyne-cross@latest
+            
+            # Install fyne-cross for Linux and Windows builds
+            if [ "${{ matrix.name }}" == "linux" ] || [ "${{ matrix.name }}" == "windows" ]; then
+              go install github.com/fyne-io/fyne-cross@latest
+            fi
           elif [ "$RUNNER_OS" == "macOS" ]; then
             # macOS already has required dependencies for native builds
             echo "macOS runner ready for native builds"
@@ -190,9 +197,10 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p release-files
-          # Copy Linux and Windows binaries
-          cp artifacts/binaries-linux-windows/password-manager-linux-amd64 release-files/
-          cp artifacts/binaries-linux-windows/password-manager-windows-amd64.exe release-files/
+          # Copy Linux binary
+          cp artifacts/binaries-linux/password-manager-linux-amd64 release-files/
+          # Copy Windows binary  
+          cp artifacts/binaries-windows/password-manager-windows-amd64.exe release-files/
           # Copy macOS binaries
           cp artifacts/binaries-macos/macos-arm64/go-password-manager release-files/go-password-manager-macos-arm64
           cp artifacts/binaries-macos/macos-amd64/go-password-manager release-files/go-password-manager-macos-amd64
