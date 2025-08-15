@@ -103,6 +103,10 @@ jobs:
           mv fyne-cross/bin/linux-amd64/go-password-manager dist/password-manager-linux-amd64
           mv fyne-cross/bin/darwin-arm64/go-password-manager dist/password-manager-macos-arm64
           mv fyne-cross/bin/windows-amd64/go-password-manager.exe dist/password-manager-windows-amd64.exe
+
+          # Make binaries executable
+          chmod +x dist/password-manager-linux-amd64
+          chmod +x dist/password-manager-macos-arm64
           
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -110,24 +114,6 @@ jobs:
           tag_name: ${{ steps.tag_version.outputs.new_tag }}
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           body: ${{ steps.tag_version.outputs.changelog }}
-          files: |
-            dist/password-manager-linux-amd64
-            dist/password-manager-macos-arm64
-            dist/password-manager-windows-amd64.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-          # Make binaries executable
-          chmod +x dist/password-manager-*
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag_version.outputs.new_tag }}
-          name: Release ${{ steps.tag_version.outputs.new_tag }}
-          draft: false
-          prerelease: ${{ contains(steps.tag_version.outputs.new_tag, 'rc') }}
-          generate_release_notes: true
           files: |
             dist/password-manager-linux-amd64
             dist/password-manager-macos-arm64
