@@ -42,19 +42,41 @@ echo "Building without version injection due to fyne-cross ldflags limitations..
 if fyne-cross windows -arch=amd64 --app-id "${APP_ID}" ./cmd; then
     echo "✓ fyne-cross build successful"
     
+    # Check what files were actually created
+    echo "Checking fyne-cross output:"
+    ls -la fyne-cross/dist/windows-amd64/
+    
     # Extract the executable from the ZIP file that fyne-cross creates
+    # Try different possible ZIP filenames
+    ZIP_FILE=""
     if [ -f "fyne-cross/dist/windows-amd64/go-password-manager.exe.zip" ]; then
+        ZIP_FILE="go-password-manager.exe.zip"
+    elif [ -f "fyne-cross/dist/windows-amd64/SecurePasswordManager.exe.zip" ]; then
+        ZIP_FILE="SecurePasswordManager.exe.zip"
+    elif [ -f "fyne-cross/dist/windows-amd64/cmd.exe.zip" ]; then
+        ZIP_FILE="cmd.exe.zip"
+    else
+        # Find any .zip file
+        ZIP_FILE=$(ls fyne-cross/dist/windows-amd64/*.zip | head -1 | xargs basename)
+    fi
+    
+    if [ -n "$ZIP_FILE" ]; then
+        echo "Found ZIP file: $ZIP_FILE"
         echo "Extracting Windows executable from ZIP..."
         cd fyne-cross/dist/windows-amd64
-        unzip -o go-password-manager.exe.zip
+        unzip -o "$ZIP_FILE"
+        
+        # Find the extracted .exe file
+        EXE_FILE=$(ls *.exe | head -1)
+        echo "Found executable: $EXE_FILE"
         cd ../../..
         
         # Move the binary to our expected location
         mkdir -p dist
-        cp fyne-cross/dist/windows-amd64/go-password-manager.exe dist/password-manager-windows-amd64.exe
+        cp "fyne-cross/dist/windows-amd64/$EXE_FILE" dist/password-manager-windows-amd64.exe
     else
-        # Fallback: look for direct binary
-        mv fyne-cross/bin/windows-amd64/go-password-manager.exe dist/password-manager-windows-amd64.exe
+        echo "Error: No ZIP file found in fyne-cross output"
+        exit 1
     fi
     
     echo "✓ Windows build completed successfully!"
