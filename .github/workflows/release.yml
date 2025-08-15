@@ -47,10 +47,12 @@ jobs:
         with:
           go-version: "1.21"
 
-      - name: Install system dependencies
+      - name: Install Fyne and system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libc6-dev libgl1-mesa-dev xorg-dev
+          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
+          go install fyne.io/fyne/v2/cmd/fyne@latest
+          go install github.com/fyne-io/fyne-cross@latest
 
       - name: Determine version bump
         id: version-bump
@@ -76,6 +78,44 @@ jobs:
 
           echo "version-bump=$VERSION_BUMP" >> $GITHUB_OUTPUT
           echo "Detected version bump: $VERSION_BUMP"
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: anothrNick/github-tag-action@1.67.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          RELEASE_BRANCHES: main
+          DEFAULT_BUMP: ${{ steps.version-bump.outputs.version-bump }}
+
+      - name: Build binaries with fyne-cross
+        run: |
+          # Add fyne-cross to path
+          export PATH=$PATH:$(go env GOPATH)/bin
+          
+          fyne-cross linux -arch=amd64 --ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}"
+          fyne-cross darwin -arch=arm64 --ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}"
+          fyne-cross windows -arch=amd64 --ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}"
+          
+          # The binaries will be in the fyne-cross/bin directory
+          # We can move them to dist for consistency
+          mkdir -p dist
+          mv fyne-cross/bin/linux-amd64/go-password-manager dist/password-manager-linux-amd64
+          mv fyne-cross/bin/darwin-arm64/go-password-manager dist/password-manager-macos-arm64
+          mv fyne-cross/bin/windows-amd64/go-password-manager.exe dist/password-manager-windows-amd64.exe
+          
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          body: ${{ steps.tag_version.outputs.changelog }}
+          files: |
+            dist/password-manager-linux-amd64
+            dist/password-manager-macos-arm64
+            dist/password-manager-windows-amd64.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Bump version and push tag
         id: tag_version
