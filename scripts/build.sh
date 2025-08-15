@@ -22,15 +22,13 @@ go install fyne.io/fyne/v2/cmd/fyne@latest
 # Add fyne-cross to path if not already there
 export PATH=$PATH:$(go env GOPATH)/bin
 
-# Construct the ldflags string using space-separated -X format
-LD_FLAGS="-X go-password-manager/cmd.version=${VERSION} -X go-password-manager/cmd.commit=${COMMIT} -X go-password-manager/cmd.date=${DATE}"
+echo "Building binaries without version injection (ldflags issue with fyne-cross)..."
+echo "Version info will show defaults: version=${VERSION}, commit=${COMMIT}, date=${DATE}"
 
-echo "Using LD_FLAGS: ${LD_FLAGS}"
-
-# Build for all targets, assuming fyne-cross and dependencies are installed
-fyne-cross linux -arch=amd64 --app-id go-password-manager --ldflags "${LD_FLAGS}" ./cmd
-fyne-cross darwin -arch=arm64 --app-id go-password-manager --ldflags "${LD_FLAGS}" ./cmd
-fyne-cross windows -arch=amd64 --app-id go-password-manager --ldflags "${LD_FLAGS}" ./cmd
+# Build for all targets without ldflags to avoid fyne-cross issues
+fyne-cross linux -arch=amd64 --app-id go-password-manager ./cmd
+fyne-cross darwin -arch=arm64 --app-id go-password-manager ./cmd
+fyne-cross windows -arch=amd64 --app-id go-password-manager ./cmd
 
 echo "Build process completed successfully."
 
