@@ -16,6 +16,9 @@ echo "Version: ${VERSION}"
 echo "Commit: ${COMMIT}"
 echo "Date: ${DATE}"
 
+echo "Installing Fyne CLI..."
+go install fyne.io/fyne/v2/cmd/fyne@latest
+
 # Add fyne-cross to path if not already there
 export PATH=$PATH:$(go env GOPATH)/bin
 
