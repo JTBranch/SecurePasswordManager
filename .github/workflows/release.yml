@@ -92,16 +92,22 @@ jobs:
         run: |
           # Add fyne-cross to path
           export PATH=$PATH:$(go env GOPATH)/bin
-          
+
+          # Prepare version variables
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
           VERSION=${{ steps.tag_version.outputs.new_tag }}
-          LD_FLAGS="-X=go-password-manager/cmd.version=$VERSION -X=go-password-manager/cmd.commit=$COMMIT -X=go-password-manager/cmd.date=$DATE"
 
-          fyne-cross linux -arch=amd64 --ldflags "$LD_FLAGS" ./cmd
-          fyne-cross darwin -arch=arm64 --ldflags "$LD_FLAGS" ./cmd
-          fyne-cross windows -arch=amd64 --ldflags "$LD_FLAGS" ./cmd
-          
+          # Define ldflags for clarity and safety
+          LDFLAGS_VERSION="-X=go-password-manager/cmd.version=${VERSION}"
+          LDFLAGS_COMMIT="-X=go-password-manager/cmd.commit=${COMMIT}"
+          LDFLAGS_DATE="-X=go-password-manager/cmd.date=${DATE}"
+
+          # Build for all targets
+          fyne-cross linux -arch=amd64 --ldflags "${LDFLAGS_VERSION} ${LDFLAGS_COMMIT} ${LDFLAGS_DATE}" ./cmd
+          fyne-cross darwin -arch=arm64 --ldflags "${LDFLAGS_VERSION} ${LDFLAGS_COMMIT} ${LDFLAGS_DATE}" ./cmd
+          fyne-cross windows -arch=amd64 --ldflags "${LDFLAGS_VERSION} ${LDFLAGS_COMMIT} ${LDFLAGS_DATE}" ./cmd
+
           # The binaries will be in the fyne-cross/bin directory
           # We can move them to dist for consistency
           mkdir -p dist
