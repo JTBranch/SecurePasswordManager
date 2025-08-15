@@ -97,9 +97,9 @@ jobs:
           DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
           LD_FLAGS="-X main.version=${{ steps.tag_version.outputs.new_tag }} -X main.commit=$COMMIT -X main.date=$DATE"
 
-          fyne-cross linux -arch=amd64 --ldflags "$LD_FLAGS" -package main
-          fyne-cross darwin -arch=arm64 --ldflags "$LD_FLAGS" -package main
-          fyne-cross windows -arch=amd64 --ldflags "$LD_FLAGS" -package main
+          fyne-cross linux -arch=amd64 --ldflags "$LD_FLAGS" ./cmd
+          fyne-cross darwin -arch=arm64 --ldflags "$LD_FLAGS" ./cmd
+          fyne-cross windows -arch=amd64 --ldflags "$LD_FLAGS" ./cmd
           
           # The binaries will be in the fyne-cross/bin directory
           # We can move them to dist for consistency
