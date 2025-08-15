@@ -57,7 +57,9 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 	os.Setenv("TEST_DATA_DIR", suite.testDataDir)
 
 	// Reset global environment config to pick up test settings
-	env.Load()
+	if _, err := env.Load(); err != nil {
+		suite.t.Fatalf("Failed to load environment configuration: %v", err)
+	}
 
 	// Create test application
 	suite.app = test.NewApp()
@@ -72,7 +74,9 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 func (suite *E2ETestSuite) SetTestDataDir(dataDir string) {
 	suite.testDataDir = dataDir
 	os.Setenv("TEST_DATA_DIR", dataDir)
-	env.Load()
+	if _, err := env.Load(); err != nil {
+		suite.t.Fatalf("Failed to load environment configuration: %v", err)
+	}
 }
 
 // GetTestDataDir returns the test data directory path

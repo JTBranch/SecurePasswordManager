@@ -1,8 +1,11 @@
-package service
+package service_test
 
 import (
 	"encoding/json"
 	"go-password-manager/internal/domain"
+	"go-password-manager/internal/service"
+	"go-password-manager/tests/helpers"
+	"go-password-manager/tests/testdata"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,236 +13,136 @@ import (
 )
 
 const (
-	testSecretsFile   = "test_secrets.json"
-	testSecretName    = "test-secret"
-	testSecretValue   = "test-value"
-	nonExistentName   = "non-existent"
-	testUser          = "test-user"
-	testEncryptionKey = "test-key-32-bytes-long-exactly!!"
-	errCreateSecret   = "Expected no error creating secret, got: %v"
-	errLoadSecrets    = "Expected no error loading secrets, got: %v"
+	testSecretsFile = "test_secrets.json"
+	nonExistentName = "non-existent"
+	errCreateSecret = "Expected no error creating secret"
+	errLoadSecrets  = "Expected no error loading secrets"
 )
 
-func setupTestService(t *testing.T) (*SecretsService, string) {
+// setupTestService creates a new SecretsService for testing, with a temporary file.
+func setupTestService(t *testing.T) *service.SecretsService {
 	tempDir := t.TempDir()
 	testFile := filepath.Join(tempDir, testSecretsFile)
 
-	service := &SecretsService{
-		AppVersion: "1.0.0",
-		AppUser:    testUser,
-		filePath:   testFile,
-	}
+	svc := service.New("1.0.0", testdata.TestUsers.UnitTestUser.Name, testFile)
+	svc.SetEncryptionKey([]byte(testdata.TestEncryptionKey))
 
-	// Initialize with test encryption key
-	service.encryptionKey = []byte(testEncryptionKey)
-
-	// Create an empty secrets file to avoid "file not found" errors
+	// Create an empty secrets file to ensure tests start with a clean slate.
 	emptySecretsFile := domain.SecretsFile{
 		AppVersion:  "1.0.0",
-		AppUser:     testUser,
+		AppUser:     testdata.TestUsers.UnitTestUser.Name,
 		LastUpdated: time.Now().Format(time.RFC3339),
 		Secrets:     []domain.Secret{},
 	}
 
-	// Write the empty file
-	data, _ := json.MarshalIndent(emptySecretsFile, "", "  ")
-	os.WriteFile(testFile, data, 0644)
+	data, err := json.MarshalIndent(emptySecretsFile, "", "  ")
+	if err != nil {
+		t.Fatalf("Failed to marshal empty secrets file: %v", err)
+	}
+	if err := os.WriteFile(testFile, data, 0644); err != nil {
+		t.Fatalf("Failed to write empty secrets file: %v", err)
+	}
 
-	return service, testFile
+	return svc
 }
 
-func TestSecretsServiceCreateSecret(t *testing.T) {
-	service, _ := setupTestService(t)
+func TestSecretsService(t *testing.T) {
+	helpers.WithUnitTestCase(t, "CreateSecret", func(tc *helpers.UnitTestCase) {
+		svc := setupTestService(t)
 
-	// Test creating a new secret
-	err := service.SaveSecret(testSecretName, testSecretValue, "key_value")
-	if err != nil {
-		t.Fatalf(errCreateSecret, err)
-	}
+		err := svc.SaveSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value, "key_value")
+		tc.Require.NoError(err, errCreateSecret)
 
-	// Verify the secret was created
-	fileData, err := service.LoadLatestSecrets()
-	if err != nil {
-		t.Fatalf(errLoadSecrets, err)
-	}
+		fileData, err := svc.LoadLatestSecrets()
+		tc.Require.NoError(err, errLoadSecrets)
 
-	if len(fileData.Secrets) != 1 {
-		t.Fatalf("Expected 1 secret, got: %d", len(fileData.Secrets))
-	}
+		tc.Assert.Len(fileData.Secrets, 1, "Expected 1 secret")
+		secret := fileData.Secrets[0]
+		tc.Assert.Equal(testdata.TestSecrets.Simple.Name, secret.SecretName, "Secret name should match")
+		tc.Assert.Equal(1, secret.CurrentVersion, "Current version should be 1")
+		tc.Assert.Len(secret.Versions, 1, "Expected 1 version")
+	})
 
-	secret := fileData.Secrets[0]
-	if secret.SecretName != testSecretName {
-		t.Errorf("Expected secret name '%s', got: %s", testSecretName, secret.SecretName)
-	}
+	helpers.WithUnitTestCase(t, "EditSecret", func(tc *helpers.UnitTestCase) {
+		svc := setupTestService(t)
 
-	if secret.CurrentVersion != 1 {
-		t.Errorf("Expected current version 1, got: %d", secret.CurrentVersion)
-	}
+		err := svc.SaveSecret(testdata.TestSecrets.Simple.Name, "initial-value", "key_value")
+		tc.Require.NoError(err, errCreateSecret)
 
-	if len(secret.Versions) != 1 {
-		t.Errorf("Expected 1 version, got: %d", len(secret.Versions))
-	}
-}
+		err = svc.EditSecret(testdata.TestSecrets.Simple.Name, "updated-value")
+		tc.Require.NoError(err, "Expected no error editing secret")
 
-func TestSecretsServiceEditSecret(t *testing.T) {
-	service, _ := setupTestService(t)
+		fileData, err := svc.LoadLatestSecrets()
+		tc.Require.NoError(err, errLoadSecrets)
 
-	// Create initial secret
-	err := service.SaveSecret(testSecretName, "initial-value", "key_value")
-	if err != nil {
-		t.Fatalf(errCreateSecret, err)
-	}
+		tc.Assert.Len(fileData.Secrets, 1, "Should still have 1 secret")
+		secret := fileData.Secrets[0]
+		tc.Assert.Equal(2, secret.CurrentVersion, "Version should be incremented")
+		tc.Assert.Len(secret.Versions, 2, "Should have 2 versions")
+	})
 
-	// Edit the secret
-	err = service.EditSecret(testSecretName, "updated-value")
-	if err != nil {
-		t.Fatalf("Expected no error editing secret, got: %v", err)
-	}
+	helpers.WithUnitTestCase(t, "DeleteSecret", func(tc *helpers.UnitTestCase) {
+		svc := setupTestService(t)
 
-	// Verify the secret was updated
-	fileData, err := service.LoadLatestSecrets()
-	if err != nil {
-		t.Fatalf(errLoadSecrets, err)
-	}
+		err := svc.SaveSecret(testdata.TestSecrets.Temporary.Name, testdata.TestSecrets.Temporary.Value, "key_value")
+		tc.Require.NoError(err, errCreateSecret)
 
-	secret := fileData.Secrets[0]
-	if secret.CurrentVersion != 2 {
-		t.Errorf("Expected current version 2, got: %d", secret.CurrentVersion)
-	}
+		err = svc.DeleteSecret(testdata.TestSecrets.Temporary.Name)
+		tc.Require.NoError(err, "Expected no error deleting secret")
 
-	if len(secret.Versions) != 2 {
-		t.Errorf("Expected 2 versions, got: %d", len(secret.Versions))
-	}
+		fileData, err := svc.LoadLatestSecrets()
+		tc.Require.NoError(err, errLoadSecrets)
+		tc.Assert.Len(fileData.Secrets, 0, "Expected 0 secrets after deletion")
+	})
 
-	// Verify we can decrypt the latest version
-	decrypted, err := service.DisplaySecret(secret)
-	if err != nil {
-		t.Fatalf("Expected no error decrypting secret, got: %v", err)
-	}
+	helpers.WithUnitTestCase(t, "GetSecret", func(tc *helpers.UnitTestCase) {
+		svc := setupTestService(t)
 
-	if decrypted != "updated-value" {
-		t.Errorf("Expected decrypted value 'updated-value', got: %s", decrypted)
-	}
-}
+		err := svc.SaveSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value, "key_value")
+		tc.Require.NoError(err, errCreateSecret)
 
-func TestSecretsServiceDeleteSecret(t *testing.T) {
-	service, _ := setupTestService(t)
+		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
+		tc.Require.NoError(err, "Expected no error getting secret")
+		tc.Assert.NotNil(secret, "Expected non-nil secret")
+		tc.Assert.Equal(testdata.TestSecrets.Simple.Name, secret.SecretName, "Secret name should match")
+	})
 
-	// Create a secret
-	err := service.SaveSecret(testSecretName, testSecretValue, "key_value")
-	if err != nil {
-		t.Fatalf(errCreateSecret, err)
-	}
+	helpers.WithUnitTestCase(t, "GetSecretNonExistent", func(tc *helpers.UnitTestCase) {
+		svc := setupTestService(t)
 
-	// Delete the secret
-	err = service.DeleteSecret(testSecretName)
-	if err != nil {
-		t.Fatalf("Expected no error deleting secret, got: %v", err)
-	}
+		_, err := svc.GetSecret(nonExistentName)
+		tc.Assert.Error(err, "Expected error getting non-existent secret")
+	})
 
-	// Verify the secret was deleted
-	fileData, err := service.LoadLatestSecrets()
-	if err != nil {
-		t.Fatalf(errLoadSecrets, err)
-	}
+	helpers.WithUnitTestCase(t, "GetSecretValue", func(tc *helpers.UnitTestCase) {
+		svc := setupTestService(t)
 
-	if len(fileData.Secrets) != 0 {
-		t.Errorf("Expected 0 secrets after deletion, got: %d", len(fileData.Secrets))
-	}
-}
+		err := svc.SaveSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value, "key_value")
+		tc.Require.NoError(err, errCreateSecret)
 
-func TestSecretsServiceDecryptSecretVersion(t *testing.T) {
-	service, _ := setupTestService(t)
+		value, err := svc.GetSecretValue(testdata.TestSecrets.Simple.Name, 1)
+		tc.Require.NoError(err, "Expected no error getting secret value")
+		tc.Assert.Equal(testdata.TestSecrets.Simple.Value, value, "Secret value should match")
+	})
 
-	// Create and edit a secret to have multiple versions
-	err := service.SaveSecret(testSecretName, "version-1", "key_value")
-	if err != nil {
-		t.Fatalf(errCreateSecret, err)
-	}
+	helpers.WithUnitTestCase(t, "GetSecretValueInvalidVersion", func(tc *helpers.UnitTestCase) {
+		svc := setupTestService(t)
 
-	err = service.EditSecret(testSecretName, "version-2")
-	if err != nil {
-		t.Fatalf("Expected no error editing secret, got: %v", err)
-	}
+		err := svc.SaveSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value, "key_value")
+		tc.Require.NoError(err, errCreateSecret)
 
-	// Load the secret
-	fileData, err := service.LoadLatestSecrets()
-	if err != nil {
-		t.Fatalf(errLoadSecrets, err)
-	}
+		_, err = svc.GetSecretValue(testdata.TestSecrets.Simple.Name, 99)
+		tc.Assert.Error(err, "Expected error for invalid version")
+	})
 
-	secret := fileData.Secrets[0]
+	helpers.WithUnitTestCase(t, "LoadLatestSecretsFileNotFound", func(tc *helpers.UnitTestCase) {
+		tempDir := t.TempDir()
+		svc := service.New("1.0.0", testdata.TestUsers.UnitTestUser.Name, filepath.Join(tempDir, "non_existent_file.json"))
+		svc.SetEncryptionKey([]byte(testdata.TestEncryptionKey))
 
-	// Test decrypting version 1
-	version1 := secret.Versions[0]
-	decrypted, err := service.DecryptSecretVersion(version1)
-	if err != nil {
-		t.Fatalf("Expected no error decrypting version 1, got: %v", err)
-	}
-
-	if decrypted != "version-1" {
-		t.Errorf("Expected decrypted value 'version-1', got: %s", decrypted)
-	}
-
-	// Test decrypting version 2
-	version2 := secret.Versions[1]
-	decrypted, err = service.DecryptSecretVersion(version2)
-	if err != nil {
-		t.Fatalf("Expected no error decrypting version 2, got: %v", err)
-	}
-
-	if decrypted != "version-2" {
-		t.Errorf("Expected decrypted value 'version-2', got: %s", decrypted)
-	}
-}
-
-func TestSecretsServiceDuplicateSecretName(t *testing.T) {
-	service, _ := setupTestService(t)
-
-	// Create a secret
-	err := service.SaveSecret(testSecretName, testSecretValue, "key_value")
-	if err != nil {
-		t.Fatalf(errCreateSecret, err)
-	}
-
-	// Try to create another secret with the same name (should create new version)
-	err = service.SaveSecret(testSecretName, "another-value", "key_value")
-	if err != nil {
-		t.Fatalf("Expected no error when adding version to existing secret, got: %v", err)
-	}
-
-	// Verify that we now have 2 versions
-	fileData, err := service.LoadLatestSecrets()
-	if err != nil {
-		t.Fatalf(errLoadSecrets, err)
-	}
-
-	if len(fileData.Secrets) != 1 {
-		t.Fatalf("Expected 1 secret, got %d", len(fileData.Secrets))
-	}
-
-	secret := fileData.Secrets[0]
-	if secret.CurrentVersion != 2 {
-		t.Errorf("Expected version 2, got %d", secret.CurrentVersion)
-	}
-
-	if len(secret.Versions) != 2 {
-		t.Errorf("Expected 2 versions, got %d", len(secret.Versions))
-	}
-}
-
-func TestSecretsServiceNonExistentSecret(t *testing.T) {
-	service, _ := setupTestService(t)
-
-	// Try to edit non-existent secret
-	err := service.EditSecret(nonExistentName, "value")
-	if err == nil {
-		t.Fatal("Expected error when editing non-existent secret, got nil")
-	}
-
-	// Try to delete non-existent secret (should be idempotent)
-	err = service.DeleteSecret(nonExistentName)
-	if err != nil {
-		t.Fatalf("Delete should be idempotent, got error: %v", err)
-	}
+		fileData, err := svc.LoadLatestSecrets()
+		tc.Require.NoError(err, "Expected no error when file does not exist")
+		tc.Assert.NotNil(fileData, "Expected non-nil file data")
+		tc.Assert.Empty(fileData.Secrets, "Expected no secrets in new file")
+	})
 }

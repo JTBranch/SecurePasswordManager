@@ -5,17 +5,17 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
-  workflow_call:  # Allow this workflow to be called by other workflows
+  workflow_call: # Allow this workflow to be called by other workflows
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: "1.21"
 
       - name: Install system dependencies (for Fyne/CGO)
         run: |

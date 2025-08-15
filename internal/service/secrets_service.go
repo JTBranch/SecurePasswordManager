@@ -63,11 +63,34 @@ func NewSecretsService(appVersion, appUser string) *SecretsService {
 	}
 }
 
+// New creates a new secrets service instance for testing or specific cases.
+func New(appVersion, appUser, filePath string) *SecretsService {
+	return &SecretsService{
+		AppVersion: appVersion,
+		AppUser:    appUser,
+		filePath:   filePath,
+		// encryptionKey is set separately for this constructor
+	}
+}
+
+// SetEncryptionKey allows setting the encryption key, primarily for testing.
+func (s *SecretsService) SetEncryptionKey(key []byte) {
+	s.encryptionKey = key
+}
+
 // LoadAllSecrets loads all secrets with nested versions from the file
 func (s *SecretsService) LoadAllSecrets() (domain.SecretsFile, error) {
 	logger.Debug("Loading all secrets from file:", s.filePath)
 	file, err := os.Open(s.filePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Debug("Secrets file not found, returning empty struct", s.filePath)
+			return domain.SecretsFile{
+				AppVersion: s.AppVersion,
+				AppUser:    s.AppUser,
+				Secrets:    []domain.Secret{},
+			}, nil
+		}
 		logger.Debug("Error opening secrets file:", err.Error())
 		return domain.SecretsFile{}, err
 	}
@@ -80,6 +103,38 @@ func (s *SecretsService) LoadAllSecrets() (domain.SecretsFile, error) {
 	jsonBytes, _ := json.MarshalIndent(data, "", "  ")
 	logger.Debug("Loaded secrets file JSON:", string(jsonBytes))
 	return data, nil
+}
+
+// GetSecret retrieves a single secret by name from the secrets file.
+func (s *SecretsService) GetSecret(secretName string) (*domain.Secret, error) {
+	allSecrets, err := s.LoadAllSecrets()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range allSecrets.Secrets {
+		if allSecrets.Secrets[i].SecretName == secretName {
+			return &allSecrets.Secrets[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("secret '%s' not found", secretName)
+}
+
+// GetSecretValue decrypts and returns the value of a specific version of a secret.
+func (s *SecretsService) GetSecretValue(secretName string, version int) (string, error) {
+	secret, err := s.GetSecret(secretName)
+	if err != nil {
+		return "", err
+	}
+
+	for _, v := range secret.Versions {
+		if v.Version == version {
+			return s.DecryptSecretVersion(v)
+		}
+	}
+
+	return "", fmt.Errorf("version %d for secret '%s' not found", version, secretName)
 }
 
 // LoadLatestSecrets loads only the latest versions of secrets for UI display

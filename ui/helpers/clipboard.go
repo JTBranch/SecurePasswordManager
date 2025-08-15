@@ -7,7 +7,7 @@ import (
 // CopyToClipboard copies text to clipboard and shows a temporary tooltip
 func CopyToClipboard(text string, window fyne.Window) {
 	// Copy to clipboard
-	window.Clipboard().SetContent(text)
+	fyne.CurrentApp().Clipboard().SetContent(text)
 
 	// Create a temporary notification
 	notification := fyne.NewNotification("Copied!", "Secret copied to clipboard")

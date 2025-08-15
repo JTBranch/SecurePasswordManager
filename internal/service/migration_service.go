@@ -48,7 +48,9 @@ func MigrateToNewFormat(filePath string) error {
 		logger.Debug("Error decoding legacy format, checking if already new format:", err.Error())
 
 		// Try to decode as new format to see if already migrated
-		file.Seek(0, 0)
+		if _, err := file.Seek(0, 0); err != nil {
+			return err
+		}
 		var newData domain.SecretsFile
 		if err := json.NewDecoder(file).Decode(&newData); err != nil {
 			logger.Debug("Error decoding as new format too:", err.Error())
@@ -75,14 +77,18 @@ func MigrateToNewFormat(filePath string) error {
 	if err != nil {
 		logger.Error("Failed to marshal new format:", err.Error())
 		// Restore backup
-		os.Rename(backupPath, filePath)
+		if err := os.Rename(backupPath, filePath); err != nil {
+			logger.Error("Failed to restore backup:", err.Error())
+		}
 		return err
 	}
 
 	if err := os.WriteFile(filePath, jsonBytes, 0600); err != nil {
 		logger.Error("Failed to write new format:", err.Error())
 		// Restore backup
-		os.Rename(backupPath, filePath)
+		if err := os.Rename(backupPath, filePath); err != nil {
+			logger.Error("Failed to restore backup:", err.Error())
+		}
 		return err
 	}
 

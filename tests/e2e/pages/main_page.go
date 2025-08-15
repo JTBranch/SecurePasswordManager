@@ -220,12 +220,14 @@ func (p *MainPageObject) waitForUIUpdate() {
 	time.Sleep(50 * time.Millisecond)
 }
 
+// findModalContent is a placeholder for finding modal content in E2E tests
 func (p *MainPageObject) findModalContent() fyne.CanvasObject {
 	// For E2E testing, return the main content to simulate modal finding
 	// In real implementation, this would traverse the Fyne widget tree to find active modals
 	return p.mainContent
 }
 
+// findEntryByPlaceholder is a placeholder for finding an entry widget in E2E tests
 func (p *MainPageObject) findEntryByPlaceholder(containerObj fyne.CanvasObject, placeholder string) *widget.Entry {
 	// For E2E testing, return a mock entry to simulate successful form filling
 	// In real implementation, this would traverse the Fyne widget tree

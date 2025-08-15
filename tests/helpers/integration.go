@@ -1,0 +1,80 @@
+package helpers
+
+import (
+	"os"
+	"path/filepath"
+
+	"go-password-manager/internal/env"
+	"go-password-manager/internal/service"
+	"go-password-manager/pkg/reporting"
+)
+
+// IntegrationTestSuite holds the test environment setup for service layer testing
+type IntegrationTestSuite struct {
+	testDataDir    string
+	originalEnv    string
+	SecretsService *service.SecretsService
+	Reporter       *reporting.TestWrapper
+}
+
+// NewIntegrationTestSuite creates a new integration test suite
+func NewIntegrationTestSuite(reporter *reporting.TestWrapper) *IntegrationTestSuite {
+	suite := &IntegrationTestSuite{Reporter: reporter}
+	return suite
+}
+
+// SetupTestEnvironment creates an isolated test environment for integration testing
+func (suite *IntegrationTestSuite) SetupTestEnvironment() {
+	// Only create a new test directory if one hasn't been set
+	if suite.testDataDir == "" {
+		// Create isolated test environment
+		suite.testDataDir = suite.Reporter.T().TempDir()
+		suite.Reporter.T().Logf("Integration test environment created at: %s", suite.testDataDir)
+	} else {
+		suite.Reporter.T().Logf("Integration test environment reusing directory: %s", suite.testDataDir)
+	}
+
+	// Set environment to use test directory
+	suite.originalEnv = os.Getenv("GO_PASSWORD_MANAGER_ENV")
+	os.Setenv("GO_PASSWORD_MANAGER_ENV", "integration-test")
+	os.Setenv("TEST_DATA_DIR", suite.testDataDir)
+
+	// Reset global environment config to pick up test settings
+	env.Load()
+
+	// Initialize secrets service with test configuration
+	suite.SecretsService = service.NewSecretsService("1.0.0-integration", "integration-test-user")
+}
+
+// SetTestDataDir sets the test data directory (for reusing existing test data)
+func (suite *IntegrationTestSuite) SetTestDataDir(dataDir string) {
+	suite.testDataDir = dataDir
+	os.Setenv("TEST_DATA_DIR", dataDir)
+	env.Load()
+}
+
+// GetTestDataDir returns the test data directory path
+func (suite *IntegrationTestSuite) GetTestDataDir() string {
+	return suite.testDataDir
+}
+
+// GetSecretsFilePath returns the path to the secrets file
+func (suite *IntegrationTestSuite) GetSecretsFilePath() string {
+	return filepath.Join(suite.testDataDir, "secrets.json")
+}
+
+// Cleanup cleans up the integration test environment
+func (suite *IntegrationTestSuite) Cleanup() {
+	// Restore original environment
+	if suite.originalEnv != "" {
+		os.Setenv("GO_PASSWORD_MANAGER_ENV", suite.originalEnv)
+	} else {
+		os.Unsetenv("GO_PASSWORD_MANAGER_ENV")
+	}
+	os.Unsetenv("TEST_DATA_DIR")
+
+	// Reload environment configuration to reset to defaults
+	env.Load()
+
+	// The test temp directory is cleaned up automatically by the test framework
+}

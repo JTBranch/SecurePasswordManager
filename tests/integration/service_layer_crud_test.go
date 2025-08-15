@@ -1,142 +1,67 @@
 package integration
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
-	"time"
 
-	"go-password-manager/internal/env"
-	"go-password-manager/internal/service"
+	"go-password-manager/pkg/reporting"
+	"go-password-manager/tests/helpers"
 	"go-password-manager/tests/testdata"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// IntegrationTestSuite holds the test environment setup for service layer testing
-type IntegrationTestSuite struct {
-	testDataDir    string
-	originalEnv    string
-	SecretsService *service.SecretsService
-	t              *testing.T
-}
+func TestCreateSecretOnFirstLoad(t *testing.T) {
+	reporting.WithReporting(t, "TestCreateSecretOnFirstLoad", func(reporter *reporting.TestWrapper) {
+		suite := helpers.NewIntegrationTestSuite(reporter)
+		suite.SetupTestEnvironment()
+		defer suite.Cleanup()
 
-// NewIntegrationTestSuite creates a new integration test suite
-func NewIntegrationTestSuite(t *testing.T) *IntegrationTestSuite {
-	suite := &IntegrationTestSuite{t: t}
-	return suite
-}
+		testDataManager := testdata.NewTestDataManager()
+		require.NoError(reporter.T(), testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
 
-// SetupTestEnvironment creates an isolated test environment for integration testing
-func (suite *IntegrationTestSuite) SetupTestEnvironment() {
-	// Only create a new test directory if one hasn't been set
-	if suite.testDataDir == "" {
-		// Create isolated test environment
-		testDir := filepath.Join(os.TempDir(), fmt.Sprintf("go-password-manager-integration-%d", time.Now().UnixNano()))
-		err := os.MkdirAll(testDir, 0755)
-		if err != nil {
-			suite.t.Fatalf("Failed to create test directory: %v", err)
-		}
-		suite.testDataDir = testDir
-		suite.t.Logf("Integration test environment created at: %s", testDir)
-	} else {
-		suite.t.Logf("Integration test environment reusing directory: %s", suite.testDataDir)
-	}
+		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("ServiceLayerCRUD")
+		require.NoError(t, err, "Should generate unique secret")
+		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
 
-	// Set environment to use test directory
-	suite.originalEnv = os.Getenv("GO_PASSWORD_MANAGER_ENV")
-	os.Setenv("GO_PASSWORD_MANAGER_ENV", "integration-test")
-	os.Setenv("TEST_DATA_DIR", suite.testDataDir)
-
-	// Reset global environment config to pick up test settings
-	env.Load()
-
-	// Initialize secrets service with test configuration
-	suite.SecretsService = service.NewSecretsService("1.0.0-integration", "integration-test-user")
-}
-
-// SetTestDataDir sets the test data directory (for reusing existing test data)
-func (suite *IntegrationTestSuite) SetTestDataDir(dataDir string) {
-	suite.testDataDir = dataDir
-	os.Setenv("TEST_DATA_DIR", dataDir)
-	env.Load()
-}
-
-// GetTestDataDir returns the test data directory path
-func (suite *IntegrationTestSuite) GetTestDataDir() string {
-	return suite.testDataDir
-}
-
-// GetSecretsFilePath returns the path to the secrets file
-func (suite *IntegrationTestSuite) GetSecretsFilePath() string {
-	return filepath.Join(suite.testDataDir, "secrets.json")
-}
-
-// Cleanup cleans up the integration test environment
-func (suite *IntegrationTestSuite) Cleanup() {
-	// Restore original environment
-	if suite.originalEnv != "" {
-		os.Setenv("GO_PASSWORD_MANAGER_ENV", suite.originalEnv)
-	} else {
-		os.Unsetenv("GO_PASSWORD_MANAGER_ENV")
-	}
-	os.Unsetenv("TEST_DATA_DIR")
-
-	// Reload environment configuration to reset to defaults
-	env.Load()
-
-	// Clean up test directory
-	err := os.RemoveAll(suite.testDataDir)
-	if err != nil {
-		suite.t.Logf("Warning: Failed to clean up test directory %s: %v", suite.testDataDir, err)
-	}
-}
-
-func TestSecretCRUDOperationsServiceLayer(t *testing.T) {
-	suite := NewIntegrationTestSuite(t)
-	defer suite.Cleanup()
-
-	suite.SetupTestEnvironment()
-
-	// Initialize test data manager
-	testDataManager := testdata.NewTestDataManager()
-	require.NoError(t, testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
-
-	// Generate unique secret for consistent testing
-	uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("ServiceLayerCRUD")
-	require.NoError(t, err, "Should generate unique secret")
-	defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
-
-	var testSecretName string
-
-	t.Run("Create a secret on first load", func(t *testing.T) {
-		// Verify no secrets exist initially
 		secrets, err := suite.SecretsService.LoadLatestSecrets()
 		require.NoError(t, err)
-		initialCount := len(secrets.Secrets)
-		assert.Equal(t, 0, initialCount, "Should start with no secrets")
+		assert.Equal(t, 0, len(secrets.Secrets), "Should start with no secrets")
 
-		// Create a new secret using unique data
-		testSecretName = uniqueSecret.UniqueName
+		testSecretName := uniqueSecret.UniqueName
 		err = suite.SecretsService.SaveSecret(uniqueSecret.UniqueName, uniqueSecret.Value, "key_value")
 		require.NoError(t, err, "Should be able to create secret")
 
-		// Verify secret was created
 		secrets, err = suite.SecretsService.LoadLatestSecrets()
 		require.NoError(t, err)
 		assert.Len(t, secrets.Secrets, 1, "Should have one secret after creation")
 		assert.Equal(t, testSecretName, secrets.Secrets[0].SecretName)
 		assert.Equal(t, 1, secrets.Secrets[0].CurrentVersion)
 	})
+}
 
-	t.Run("Existing secrets show up on second load", func(t *testing.T) {
+func TestExistingSecretShowsUpOnSecondLoad(t *testing.T) {
+	reporting.WithReporting(t, "TestExistingSecretShowsUpOnSecondLoad", func(reporter *reporting.TestWrapper) {
+		suite := helpers.NewIntegrationTestSuite(reporter)
+		suite.SetupTestEnvironment()
+		defer suite.Cleanup()
+
+		testDataManager := testdata.NewTestDataManager()
+		require.NoError(reporter.T(), testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
+
+		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("SecondLoadTest")
+		require.NoError(t, err, "Should generate unique secret")
+		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+
+		// Create a secret
+		err = suite.SecretsService.SaveSecret(uniqueSecret.UniqueName, uniqueSecret.Value, "key_value")
+		require.NoError(t, err, "Should be able to create secret")
+
 		// Simulate app restart by creating a new suite with the same data directory
-		suite2 := NewIntegrationTestSuite(t)
+		suite2 := helpers.NewIntegrationTestSuite(reporter)
 		suite2.SetTestDataDir(suite.GetTestDataDir()) // Use same data directory
 		suite2.SetupTestEnvironment()                 // Initialize with the shared data directory
-		// Note: No cleanup here as we're sharing the test data directory
 
 		// Verify the previously created secret is still there
 		secrets, err := suite2.SecretsService.LoadLatestSecrets()
@@ -146,7 +71,7 @@ func TestSecretCRUDOperationsServiceLayer(t *testing.T) {
 
 		foundSecret := false
 		for _, secret := range secrets.Secrets {
-			if secret.SecretName == testSecretName {
+			if secret.SecretName == uniqueSecret.UniqueName {
 				foundSecret = true
 				break
 			}
@@ -159,8 +84,25 @@ func TestSecretCRUDOperationsServiceLayer(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, uniqueSecret.Value, decryptedValue)
 	})
+}
 
-	t.Run("Versioning", func(t *testing.T) {
+func TestSecretVersioning(t *testing.T) {
+	reporting.WithReporting(t, "TestSecretVersioning", func(reporter *reporting.TestWrapper) {
+		suite := helpers.NewIntegrationTestSuite(reporter)
+		suite.SetupTestEnvironment()
+		defer suite.Cleanup()
+
+		testDataManager := testdata.NewTestDataManager()
+		require.NoError(reporter.T(), testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
+
+		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("VersioningTest")
+		require.NoError(t, err, "Should generate unique secret")
+		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+
+		// Create a secret
+		err = suite.SecretsService.SaveSecret(uniqueSecret.UniqueName, uniqueSecret.Value, "key_value")
+		require.NoError(t, err, "Should be able to create secret")
+
 		// Load current secrets from the original suite
 		secrets, err := suite.SecretsService.LoadLatestSecrets()
 		require.NoError(t, err)
@@ -199,8 +141,25 @@ func TestSecretCRUDOperationsServiceLayer(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, uniqueSecret.Value, oldDecryptedValue, "First version should have original value")
 	})
+}
 
-	t.Run("Delete a secret", func(t *testing.T) {
+func TestDeleteSecret(t *testing.T) {
+	reporting.WithReporting(t, "TestDeleteSecret", func(reporter *reporting.TestWrapper) {
+		suite := helpers.NewIntegrationTestSuite(reporter)
+		suite.SetupTestEnvironment()
+		defer suite.Cleanup()
+
+		testDataManager := testdata.NewTestDataManager()
+		require.NoError(reporter.T(), testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
+
+		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("DeleteTest")
+		require.NoError(t, err, "Should generate unique secret")
+		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+
+		// Create a secret
+		err = suite.SecretsService.SaveSecret(uniqueSecret.UniqueName, uniqueSecret.Value, "key_value")
+		require.NoError(t, err, "Should be able to create secret")
+
 		// Verify secret exists before deletion
 		secrets, err := suite.SecretsService.LoadLatestSecrets()
 		require.NoError(t, err)
@@ -234,47 +193,46 @@ func TestSecretCRUDOperationsServiceLayer(t *testing.T) {
 	})
 }
 
-func TestSecretCRUDOperationsErrorHandling(t *testing.T) {
-	suite := NewIntegrationTestSuite(t)
-	defer suite.Cleanup()
+func TestErrorHandlingForNonExistentSecret(t *testing.T) {
+	reporting.WithReporting(t, "TestErrorHandlingForNonExistentSecret", func(reporter *reporting.TestWrapper) {
+		suite := helpers.NewIntegrationTestSuite(reporter)
+		suite.SetupTestEnvironment()
+		defer suite.Cleanup()
 
-	suite.SetupTestEnvironment()
-
-	// Initialize test data manager
-	testDataManager := testdata.NewTestDataManager()
-	require.NoError(t, testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
-
-	// Generate unique secrets for multiple secret management
-	uniqueSecrets, err := testDataManager.GenerateUniqueCRUDSet("ErrorHandling")
-	require.NoError(t, err, "Should generate unique CRUD set")
-
-	var secretNames []string
-	for _, secret := range uniqueSecrets {
-		secretNames = append(secretNames, secret.UniqueName)
-	}
-	defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, secretNames)
-
-	t.Run("Error handling for non-existent secret operations", func(t *testing.T) {
-		// Try to edit a non-existent secret
 		err := suite.SecretsService.EditSecret("NonExistentSecret", "NewValue")
 		assert.Error(t, err, "Should return error for non-existent secret")
 
-		// Try to delete a non-existent secret
 		err = suite.SecretsService.DeleteSecret("NonExistentSecret")
 		assert.NoError(t, err, "Delete should not error for non-existent secret (idempotent)")
 
-		// Verify no secrets were created during error scenarios
 		secrets, err := suite.SecretsService.LoadLatestSecrets()
 		require.NoError(t, err)
 		assert.Len(t, secrets.Secrets, 0, "No secrets should exist after error scenarios")
 	})
+}
 
-	t.Run("Multiple secrets management", func(t *testing.T) {
-		// Create multiple secrets using unique data
+func TestMultipleSecretsManagement(t *testing.T) {
+	reporting.WithReporting(t, "TestMultipleSecretsManagement", func(reporter *reporting.TestWrapper) {
+		suite := helpers.NewIntegrationTestSuite(reporter)
+		suite.SetupTestEnvironment()
+		defer suite.Cleanup()
 
+		testDataManager := testdata.NewTestDataManager()
+		require.NoError(reporter.T(), testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
+
+		uniqueSecrets, err := testDataManager.GenerateUniqueCRUDSet("ErrorHandling")
+		require.NoError(reporter.T(), err, "Should generate unique CRUD set")
+
+		var secretNames []string
+		for _, secret := range uniqueSecrets {
+			secretNames = append(secretNames, secret.UniqueName)
+		}
+		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, secretNames)
+
+		// Create all secrets first
 		for _, secret := range uniqueSecrets {
 			err := suite.SecretsService.SaveSecret(secret.UniqueName, secret.Value, "key_value")
-			require.NoError(t, err, "Should be able to create secret %s", secret.UniqueName)
+			require.NoError(reporter.T(), err, "Should be able to create secret %s", secret.UniqueName)
 		}
 
 		// Verify all secrets were created
@@ -293,37 +251,51 @@ func TestSecretCRUDOperationsErrorHandling(t *testing.T) {
 		for _, uniqueSecret := range uniqueSecrets {
 			assert.Equal(t, uniqueSecret.Value, secretMap[uniqueSecret.UniqueName], "Secret %s should have correct value", uniqueSecret.UniqueName)
 		}
+	})
+}
+
+func TestDeleteOneOfMultipleSecrets(t *testing.T) {
+	reporting.WithReporting(t, "TestDeleteOneOfMultipleSecrets", func(reporter *reporting.TestWrapper) {
+		suite := helpers.NewIntegrationTestSuite(reporter)
+		suite.SetupTestEnvironment()
+		defer suite.Cleanup()
+
+		testDataManager := testdata.NewTestDataManager()
+		require.NoError(reporter.T(), testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
+
+		uniqueSecrets, err := testDataManager.GenerateUniqueCRUDSet("ErrorHandling")
+		require.NoError(reporter.T(), err, "Should generate unique CRUD set")
+
+		var secretNames []string
+		for _, secret := range uniqueSecrets {
+			secretNames = append(secretNames, secret.UniqueName)
+		}
+		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, secretNames)
+
+		// Create all secrets first
+		for _, secret := range uniqueSecrets {
+			err := suite.SecretsService.SaveSecret(secret.UniqueName, secret.Value, "key_value")
+			require.NoError(reporter.T(), err, "Should be able to create secret %s", secret.UniqueName)
+		}
 
 		// Delete one secret and verify others remain
 		var deletedSecretName string
 		for _, secret := range uniqueSecrets {
 			deletedSecretName = secret.UniqueName
-			break // Get the first secret to delete
+			break // just need one to delete
 		}
 		err = suite.SecretsService.DeleteSecret(deletedSecretName)
 		require.NoError(t, err)
 
-		secrets, err = suite.SecretsService.LoadLatestSecrets()
+		secretsAfterDelete, err := suite.SecretsService.LoadLatestSecrets()
 		require.NoError(t, err)
-		assert.Len(t, secrets.Secrets, 3, "Should have 3 secrets after deleting one")
+		assert.Len(t, secretsAfterDelete.Secrets, 3, "Should have 3 secrets after deleting one")
 
 		// Verify the correct secret was deleted
-		remainingNames := make([]string, 0, 2)
-		for _, secret := range secrets.Secrets {
+		remainingNames := make([]string, 0, 3)
+		for _, secret := range secretsAfterDelete.Secrets {
 			remainingNames = append(remainingNames, secret.SecretName)
 		}
-
-		// Verify we have the correct number of remaining secrets
 		assert.NotContains(t, remainingNames, deletedSecretName, "Deleted secret should not be present")
-
-		// Verify the other secrets still exist
-		remainingCount := 0
-		for _, uniqueSecret := range uniqueSecrets {
-			if uniqueSecret.UniqueName != deletedSecretName {
-				assert.Contains(t, remainingNames, uniqueSecret.UniqueName, "Remaining secret should be present")
-				remainingCount++
-			}
-		}
-		assert.Equal(t, 3, remainingCount, "Should have exactly 3 remaining secrets")
 	})
 }

@@ -24,11 +24,70 @@ make build        # Build binary
 make test         # Run tests
 
 # Releases (requires GitHub CLI)
-make version      # Show current version  
+make version      # Show current version
 make release-patch    # v1.0.0 -> v1.0.1
 make release-minor    # v1.0.0 -> v1.1.0
 make release-major    # v1.0.0 -> v2.0.0
 ```
+
+## Testing
+
+This project uses a suite of automated tests to ensure code quality and stability.
+
+### Running Tests
+
+You can run all tests using the following command:
+
+```bash
+make test
+```
+
+This will execute unit, integration, and end-to-end (E2E) tests.
+
+### Writing Integration Tests
+
+To ensure consistency and reduce boilerplate, all new integration tests **must** use the `IntegrationTestSuite` helper. This suite handles the setup and teardown of the test environment, including creating temporary data directories and initializing services.
+
+**Example Usage:**
+
+Here is an example of how to structure a new integration test:
+
+```go
+package integration
+
+import (
+	"testing"
+
+	"go-password-manager/pkg/reporting"
+	"go-password-manager/tests/helpers"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestYourNewFeature(t *testing.T) {
+	reporting.WithReporting(t, "TestYourNewFeature", func(reporter *reporting.TestWrapper) {
+		// 1. Initialize the test suite
+		suite := helpers.NewIntegrationTestSuite(reporter)
+		suite.SetupTestEnvironment()
+		defer suite.Cleanup()
+
+		// 2. Access services from the suite
+		// Example: Load secrets using the suite's service
+		secrets, err := suite.SecretsService.LoadLatestSecrets()
+		require.NoError(t, err)
+		assert.Empty(t, secrets.Secrets, "Should start with no secrets")
+
+		// 3. Write your test logic here...
+	})
+}
+```
+
+**Key Principles:**
+
+- **Use `helpers.NewIntegrationTestSuite(reporter)`**: This creates a new test suite.
+- **Call `suite.SetupTestEnvironment()`**: This prepares the test environment (e.g., temporary directories).
+- **Use `defer suite.Cleanup()`**: This ensures the test environment is cleaned up after the test runs.
+- **Access services via `suite.*`**: Use `suite.SecretsService`, `suite.ConfigService`, etc., to interact with the application's components.
 
 ## Automated Release System
 
@@ -42,7 +101,7 @@ The system automatically detects version bumps from your commit messages using [
 # Patch release (1.0.0 → 1.0.1)
 git commit -m "fix: resolve authentication issue"
 
-# Minor release (1.0.0 → 1.1.0) 
+# Minor release (1.0.0 → 1.1.0)
 git commit -m "feat: add secret export functionality"
 
 # Major release (1.0.0 → 2.0.0)
@@ -54,6 +113,7 @@ BREAKING CHANGE: changes the API interface"
 ```
 
 **How it works:**
+
 1. Push commits with conventional prefixes (`feat:`, `fix:`, etc.)
 2. CI pipeline runs comprehensive tests (unit, integration, E2E)
 3. On CI success, release workflow automatically triggers
@@ -99,7 +159,7 @@ gh run list --workflow="ci.yml"
 # View automatic releases
 gh run list --workflow="release.yml"
 
-# View manual releases  
+# View manual releases
 gh run list --workflow="manual-release.yml"
 
 # View latest releases
@@ -115,6 +175,7 @@ The release system is configured via GitHub Actions workflows:
 - **`.github/workflows/manual-release.yml`** - Manual release triggers
 
 **Prerequisites for releases:**
+
 - GitHub CLI installed (`gh` command)
 - Repository permissions: Settings → Actions → General → "Read and write permissions"
 - Valid GitHub token with workflow access
@@ -167,29 +228,29 @@ make run
 
 ### Available Commands
 
-| Command               | Description                                    |
-| --------------------- | ---------------------------------------------- |
-| **Development**       |                                                |
-| `make dev`            | Run in development mode with debug logging    |
-| `make build`          | Build the application binary                   |
-| **Testing**           |                                                |
-| `make test-unit`      | Run unit tests with race detection            |
-| `make test-integration` | Run integration tests with coverage         |
-| `make test-e2e`       | Run end-to-end tests with detailed logging    |
-| `make test-all`       | Run all tests with comprehensive reporting    |
-| `make ci-reports`     | Run complete CI pipeline locally              |
-| **Code Quality**      |                                                |
-| `make fmt`            | Format code with go fmt                       |
-| `make lint`           | Run linting (golangci-lint or go vet)         |
-| **Release Management** |                                               |
-| `make version`        | Show current git version                       |
-| `make release-patch`  | Trigger patch release (1.0.0 → 1.0.1)        |
-| `make release-minor`  | Trigger minor release (1.0.0 → 1.1.0)        |
-| `make release-major`  | Trigger major release (1.0.0 → 2.0.0)        |
-| `make release-prerelease` | Trigger prerelease (1.0.0 → 1.0.1-rc.1)  |
-| **Utilities**         |                                                |
-| `make clean`          | Remove build artifacts and test reports       |
-| `make help`           | Show detailed help with all available commands |
+| Command                   | Description                                    |
+| ------------------------- | ---------------------------------------------- |
+| **Development**           |                                                |
+| `make dev`                | Run in development mode with debug logging     |
+| `make build`              | Build the application binary                   |
+| **Testing**               |                                                |
+| `make test-unit`          | Run unit tests with race detection             |
+| `make test-integration`   | Run integration tests with coverage            |
+| `make test-e2e`           | Run end-to-end tests with detailed logging     |
+| `make test-all`           | Run all tests with comprehensive reporting     |
+| `make ci-reports`         | Run complete CI pipeline locally               |
+| **Code Quality**          |                                                |
+| `make fmt`                | Format code with go fmt                        |
+| `make lint`               | Run linting (golangci-lint or go vet)          |
+| **Release Management**    |                                                |
+| `make version`            | Show current git version                       |
+| `make release-patch`      | Trigger patch release (1.0.0 → 1.0.1)          |
+| `make release-minor`      | Trigger minor release (1.0.0 → 1.1.0)          |
+| `make release-major`      | Trigger major release (1.0.0 → 2.0.0)          |
+| `make release-prerelease` | Trigger prerelease (1.0.0 → 1.0.1-rc.1)        |
+| **Utilities**             |                                                |
+| `make clean`              | Remove build artifacts and test reports        |
+| `make help`               | Show detailed help with all available commands |
 
 ### Environment Variables
 
@@ -263,6 +324,7 @@ make ci-reports        # Full CI pipeline with all reports generated
 
 **Test Reports:**
 All tests generate detailed reports in the `tmp/output/` directory:
+
 - `coverage.html` - Interactive HTML coverage report
 - `coverage-summary.txt` - Coverage percentage summary
 - `test-results.json` - Detailed test execution results
@@ -274,24 +336,28 @@ These reports are automatically generated in CI builds and available for downloa
 The project features a comprehensive GitHub Actions pipeline with:
 
 ### 🧪 **Comprehensive Testing**
+
 - **Unit Tests**: Fast, isolated component testing with race detection
 - **Integration Tests**: Cross-component functionality testing with coverage
 - **E2E Tests**: Full application workflow testing with GUI simulation
 - **Coverage Reporting**: Integrated with [Codecov](https://codecov.io) for coverage tracking
 
 ### 📊 **Quality Assurance**
+
 - **Code Coverage**: Minimum coverage thresholds with detailed HTML reports
 - **Race Detection**: Concurrent access testing with `-race` flag
 - **Linting**: Code quality checks with `golangci-lint`
 - **Formatting**: Automatic code formatting validation
 
 ### 🚀 **Automated Deployment**
+
 - **Multi-Platform Builds**: Linux, macOS (ARM64), Windows binaries
 - **Semantic Versioning**: Automatic version bumping via conventional commits
 - **Release Automation**: CI-dependent releases with comprehensive artifacts
 - **GitHub Releases**: Automatic release creation with binaries and notes
 
 ### 📁 **Artifact Management**
+
 - **Test Reports**: HTML coverage reports and JSON test results
 - **Build Artifacts**: Multi-platform binaries with 30-day retention
 - **Release Assets**: Optimized production binaries attached to releases

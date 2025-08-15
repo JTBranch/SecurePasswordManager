@@ -50,6 +50,11 @@ type TestScenariosCollection struct {
 	Persistence TestScenario
 }
 
+const (
+	TestEncryptionKey      = "12345678901234567890123456789012"
+	DifferentEncryptionKey = "abcdefghijklmnopqrstuvwxyz123456"
+)
+
 var (
 	// TestUsers provides immutable test user data
 	TestUsers = struct {
