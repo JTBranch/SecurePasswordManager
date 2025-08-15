@@ -26,8 +26,17 @@ echo "Building binaries without version injection (ldflags issue with fyne-cross
 echo "Version info will show defaults: version=${VERSION}, commit=${COMMIT}, date=${DATE}"
 
 # Build for all targets without ldflags to avoid fyne-cross issues
+echo "Building Linux binary..."
 fyne-cross linux -arch=amd64 --app-id go-password-manager ./cmd
-fyne-cross darwin -arch=arm64 --app-id go-password-manager ./cmd
+
+echo "Building macOS binary..."
+# For macOS builds in CI, we need to set the macOS SDK environment
+# The fyneio/fyne-cross-images:darwin image should handle this automatically
+# Set minimal macOS version for compatibility
+export MACOSX_VERSION_MIN=10.15
+fyne-cross darwin -arch=arm64 --app-id go-password-manager --macosx-version-min=10.15 ./cmd
+
+echo "Building Windows binary..."
 fyne-cross windows -arch=amd64 --app-id go-password-manager ./cmd
 
 echo "Build process completed successfully."
