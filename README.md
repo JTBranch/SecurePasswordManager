@@ -15,6 +15,33 @@ The development process leverages AI assistance for:
 
 The goal is to demonstrate that AI-assisted development, under proper human guidance and supervision, can produce enterprise-grade software while maintaining code quality, security, and maintainability standards typically expected in production environments.
 
+## 📥 Easy Installation
+
+### 🎯 **One-Click Install** (Recommended for users)
+
+**macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-macos.sh | bash
+```
+
+**Windows:**
+Download and run: [install-windows.bat](https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-windows.bat)
+
+**Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-linux.sh | bash
+```
+
+### 📦 **Manual Download**
+
+Visit [Releases](https://github.com/JTBranch/SecurePasswordManager/releases/latest) and download:
+- **macOS Apple Silicon**: `go-password-manager-macos-arm64`
+- **macOS Intel**: `go-password-manager-macos-amd64` 
+- **Windows**: `password-manager-windows-amd64.exe`
+- **Linux**: `password-manager-linux-amd64`
+
+> 💡 **First-time users**: See [INSTALL.md](INSTALL.md) for detailed setup instructions
+
 ## Quick Start
 
 ```bash

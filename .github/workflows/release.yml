@@ -179,7 +179,7 @@ jobs:
           # Copy macOS binaries
           cp artifacts/binaries-macos/macos-arm64/go-password-manager release-files/go-password-manager-macos-arm64
           cp artifacts/binaries-macos/macos-amd64/go-password-manager release-files/go-password-manager-macos-amd64
-          
+
           ls -la release-files/
 
       - name: Release
