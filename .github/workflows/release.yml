@@ -75,19 +75,22 @@ jobs:
           DEFAULT_BUMP: ${{ steps.version-bump.outputs.version-bump }}
 
   build:
-    name: Build
+    name: Build ${{ matrix.display_name }}
     needs: version
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             name: linux
+            display_name: Linux
             script: build-linux.sh
           - os: ubuntu-latest
             name: windows
+            display_name: Windows
             script: build-windows.sh
           - os: macos-latest
             name: macos
+            display_name: macOS
             script: build-macos.sh
     runs-on: ${{ matrix.os }}
     permissions:
