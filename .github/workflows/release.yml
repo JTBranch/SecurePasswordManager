@@ -95,7 +95,8 @@ jobs:
           
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          LD_FLAGS="-X main.version=${{ steps.tag_version.outputs.new_tag }} -X main.commit=$COMMIT -X main.date=$DATE"
+          VERSION=${{ steps.tag_version.outputs.new_tag }}
+          LD_FLAGS="-X=go-password-manager/cmd.version=$VERSION -X=go-password-manager/cmd.commit=$COMMIT -X=go-password-manager/cmd.date=$DATE"
 
           fyne-cross linux -arch=amd64 --ldflags "$LD_FLAGS" ./cmd
           fyne-cross darwin -arch=arm64 --ldflags "$LD_FLAGS" ./cmd
