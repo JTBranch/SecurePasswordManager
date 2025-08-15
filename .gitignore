@@ -32,3 +32,17 @@ keys/
 # Ignore compiled binaries
 main
 /main
+
+# Ignore build artifacts and distribution files
+dist/
+fyne-cross/
+bin/
+
+# Ignore test and debug files  
+test_*.sh
+*_test_*.sh
+test_macos_*.sh
+
+# Ignore local development files
+*.local
+local-*
