@@ -117,28 +117,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Bump version and push tag
-        id: tag_version
-        uses: anothrNick/github-tag-action@1.67.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WITH_V: true
-          RELEASE_BRANCHES: main
-          DEFAULT_BUMP: ${{ steps.version-bump.outputs.version-bump }}
-
-      - name: Build binaries
-        run: |
-          mkdir -p dist
-
-          # Linux x64
-          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}" -o dist/password-manager-linux-amd64 ./cmd
-
-          # macOS ARM64 (Apple Silicon)
-          GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}" -o dist/password-manager-macos-arm64 ./cmd
-
-          # Windows x64
-          GOOS=windows GOARCH=amd64 go build -ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}" -o dist/password-manager-windows-amd64.exe ./cmd
-
           # Make binaries executable
           chmod +x dist/password-manager-*
 
