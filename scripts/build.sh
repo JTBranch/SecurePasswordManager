@@ -22,8 +22,8 @@ go install fyne.io/fyne/v2/cmd/fyne@latest
 # Add fyne-cross to path if not already there
 export PATH=$PATH:$(go env GOPATH)/bin
 
-# Construct the ldflags string using the -X=key=value format
-LD_FLAGS="-X=go-password-manager/cmd.version=${VERSION} -X=go-password-manager/cmd.commit=${COMMIT} -X=go-password-manager/cmd.date=${DATE}"
+# Construct the ldflags string using space-separated -X format
+LD_FLAGS="-X go-password-manager/cmd.version=${VERSION} -X go-password-manager/cmd.commit=${COMMIT} -X go-password-manager/cmd.date=${DATE}"
 
 echo "Using LD_FLAGS: ${LD_FLAGS}"
 
