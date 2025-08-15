@@ -37,7 +37,17 @@ echo "Build process completed successfully."
 # We can move them to dist for consistency
 echo "Moving binaries to dist/ directory..."
 mkdir -p dist
-mv fyne-cross/bin/linux-amd64/go-password-manager dist/password-manager-linux-amd64
+
+# Check if the binary exists and move it
+if [ -f "fyne-cross/bin/linux-amd64/cmd" ]; then
+    mv fyne-cross/bin/linux-amd64/cmd dist/password-manager-linux-amd64
+elif [ -f "fyne-cross/bin/linux-amd64/go-password-manager" ]; then
+    mv fyne-cross/bin/linux-amd64/go-password-manager dist/password-manager-linux-amd64
+else
+    echo "Error: Could not find Linux binary in expected location"
+    ls -la fyne-cross/bin/linux-amd64/
+    exit 1
+fi
 
 # Make binaries executable
 echo "Setting executable permissions..."
