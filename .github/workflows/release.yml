@@ -45,13 +45,14 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.22"
 
-      - name: Install Fyne and system dependencies
+      - name: Install Fyne and fyne-cross
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
           go install fyne.io/fyne/v2/cmd/fyne@latest
+          go install github.com/fyne-io/fyne-cross@latest
           go install github.com/fyne-io/fyne-cross@latest
 
       - name: Determine version bump
@@ -88,36 +89,14 @@ jobs:
           RELEASE_BRANCHES: main
           DEFAULT_BUMP: ${{ steps.version-bump.outputs.version-bump }}
 
-      - name: Build binaries with fyne-cross
+      - name: Build binaries via script
         run: |
-          # Add fyne-cross to path
-          export PATH=$PATH:$(go env GOPATH)/bin
-
-          # Prepare version variables
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
           VERSION=${{ steps.tag_version.outputs.new_tag }}
 
-          # Define ldflags for clarity and safety
-          LDFLAGS_VERSION="-X=go-password-manager/cmd.version=${VERSION}"
-          LDFLAGS_COMMIT="-X=go-password-manager/cmd.commit=${COMMIT}"
-          LDFLAGS_DATE="-X=go-password-manager/cmd.date=${DATE}"
-
-          # Build for all targets
-          fyne-cross linux -arch=amd64 --ldflags "${LDFLAGS_VERSION} ${LDFLAGS_COMMIT} ${LDFLAGS_DATE}" ./cmd
-          fyne-cross darwin -arch=arm64 --ldflags "${LDFLAGS_VERSION} ${LDFLAGS_COMMIT} ${LDFLAGS_DATE}" ./cmd
-          fyne-cross windows -arch=amd64 --ldflags "${LDFLAGS_VERSION} ${LDFLAGS_COMMIT} ${LDFLAGS_DATE}" ./cmd
-
-          # The binaries will be in the fyne-cross/bin directory
-          # We can move them to dist for consistency
-          mkdir -p dist
-          mv fyne-cross/bin/linux-amd64/go-password-manager dist/password-manager-linux-amd64
-          mv fyne-cross/bin/darwin-arm64/go-password-manager dist/password-manager-macos-arm64
-          mv fyne-cross/bin/windows-amd64/go-password-manager.exe dist/password-manager-windows-amd64.exe
-
-          # Make binaries executable
-          chmod +x dist/password-manager-linux-amd64
-          chmod +x dist/password-manager-macos-arm64
+          chmod +x ./scripts/build.sh
+          ./scripts/build.sh "$VERSION" "$COMMIT" "$DATE"
 
       - name: Release
         uses: softprops/action-gh-release@v2
