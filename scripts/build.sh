@@ -30,11 +30,10 @@ echo "Building Linux binary..."
 fyne-cross linux -arch=amd64 --app-id go-password-manager ./cmd
 
 echo "Building macOS binary..."
-# For macOS builds in CI, we need to set the macOS SDK environment
-# The fyneio/fyne-cross-images:darwin image should handle this automatically
-# Set minimal macOS version for compatibility
-export MACOSX_VERSION_MIN=10.15
-fyne-cross darwin -arch=arm64 --app-id go-password-manager --macosx-version-min=10.15 ./cmd
+# Skip macOS builds for now due to SDK path requirements in fyne-cross
+# TODO: Configure macOS SDK properly for Darwin builds
+echo "Skipping macOS build temporarily due to SDK configuration requirements"
+# fyne-cross darwin -arch=arm64 --app-id go-password-manager --macosx-version-min=10.15 ./cmd
 
 echo "Building Windows binary..."
 fyne-cross windows -arch=amd64 --app-id go-password-manager ./cmd
@@ -46,12 +45,11 @@ echo "Build process completed successfully."
 echo "Moving binaries to dist/ directory..."
 mkdir -p dist
 mv fyne-cross/bin/linux-amd64/go-password-manager dist/password-manager-linux-amd64
-mv fyne-cross/bin/darwin-arm64/go-password-manager dist/password-manager-macos-arm64
+# Skip macOS binary (not built)
 mv fyne-cross/bin/windows-amd64/go-password-manager.exe dist/password-manager-windows-amd64.exe
 
 # Make binaries executable
 echo "Setting executable permissions..."
 chmod +x dist/password-manager-linux-amd64
-chmod +x dist/password-manager-macos-arm64
 
-echo "Artifacts are ready in dist/ directory."
+echo "Artifacts are ready in dist/ directory (Linux and Windows only)."

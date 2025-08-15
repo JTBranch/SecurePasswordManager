@@ -110,7 +110,6 @@ jobs:
           body: ${{ steps.tag_version.outputs.changelog }}
           files: |
             dist/password-manager-linux-amd64
-            dist/password-manager-macos-arm64
             dist/password-manager-windows-amd64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
