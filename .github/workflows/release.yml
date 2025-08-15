@@ -1,0 +1,118 @@
+name: Release Build
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: "Version bump type"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+  workflow_call: # Allow this workflow to be called by other workflows
+    inputs:
+      version_bump:
+        description: "Version bump type"
+        required: true
+        default: "patch"
+        type: string
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    if: always() && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call')
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history for version detection
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev
+
+      - name: Determine version bump
+        id: version-bump
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "workflow_call" ]; then
+            # Manual trigger - use provided input
+            VERSION_BUMP="${{ inputs.version_bump }}"
+          else
+            # Automatic trigger - detect from commit messages
+            LATEST_COMMIT=$(git log -1 --pretty=format:"%s %b")
+            echo "Latest commit: $LATEST_COMMIT"
+            
+            if echo "$LATEST_COMMIT" | grep -q "BREAKING CHANGE\|feat!:"; then
+              VERSION_BUMP="major"
+            elif echo "$LATEST_COMMIT" | grep -q "^feat:"; then
+              VERSION_BUMP="minor"
+            elif echo "$LATEST_COMMIT" | grep -q "^fix:"; then
+              VERSION_BUMP="patch"
+            else
+              VERSION_BUMP="patch"  # Default for other commit types
+            fi
+          fi
+
+          echo "version-bump=$VERSION_BUMP" >> $GITHUB_OUTPUT
+          echo "Detected version bump: $VERSION_BUMP"
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: anothrNick/github-tag-action@1.67.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          RELEASE_BRANCHES: main
+          DEFAULT_BUMP: ${{ steps.version-bump.outputs.version-bump }}
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+
+          # Linux x64
+          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}" -o dist/password-manager-linux-amd64 ./cmd
+
+          # macOS ARM64 (Apple Silicon)
+          GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}" -o dist/password-manager-macos-arm64 ./cmd
+
+          # Windows x64
+          GOOS=windows GOARCH=amd64 go build -ldflags "-X main.version=${{ steps.tag_version.outputs.new_tag }}" -o dist/password-manager-windows-amd64.exe ./cmd
+
+          # Make binaries executable
+          chmod +x dist/password-manager-*
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          draft: false
+          prerelease: ${{ contains(steps.tag_version.outputs.new_tag, 'rc') }}
+          generate_release_notes: true
+          files: |
+            dist/password-manager-linux-amd64
+            dist/password-manager-macos-arm64
+            dist/password-manager-windows-amd64.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
