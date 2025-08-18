@@ -8,6 +8,7 @@ on:
   pull_request:
     branches: [main]
   workflow_call: # Allow this workflow to be called by other workflows
+  workflow_dispatch: # Allow this workflow to be triggered manually
 
 jobs:
   test:
