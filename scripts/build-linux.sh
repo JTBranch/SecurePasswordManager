@@ -29,6 +29,7 @@ echo "Version info will show defaults: version=${VERSION}, commit=${COMMIT}, dat
 
 # Build for Linux without ldflags to avoid fyne-cross issues
 echo "Building Linux binary..."
+echo "Note: fyne-cross doesn't support ldflags, so production mode detection will use environment defaults"
 fyne-cross linux -arch=amd64 --app-id com.github.jtbranch.go-password-manager ./cmd
 
 echo "Build process completed successfully."

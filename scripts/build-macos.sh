@@ -19,13 +19,13 @@ mkdir -p dist/macos-amd64
 
 echo "Building macOS ARM64 (Apple Silicon)..."
 CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build \
-  -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" \
+  -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE} -X go-password-manager/internal/env.version=${VERSION}" \
   -o "dist/macos-arm64/go-password-manager" \
   ./cmd
 
 echo "Building macOS AMD64 (Intel)..."
 CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build \
-  -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" \
+  -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE} -X go-password-manager/internal/env.version=${VERSION}" \
   -o "dist/macos-amd64/go-password-manager" \
   ./cmd
 

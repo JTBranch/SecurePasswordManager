@@ -38,6 +38,7 @@ echo "Using app ID: ${APP_ID}"
 
 # Try fyne-cross with proper app ID (without ldflags due to fyne-cross limitations)
 echo "Building without version injection due to fyne-cross ldflags limitations..."
+echo "Production mode will be detected via environment or default to production for releases"
 
 if fyne-cross windows -arch=amd64 --app-id "${APP_ID}" ./cmd; then
     echo "✓ fyne-cross build successful"

@@ -4,7 +4,23 @@ A secure, cross-platform password manager built in Go with a modern Fyne UI. All
 
 ## AI-Assisted Development
 
-This project serves as an **experiment in AI-assisted software development**, exploring how modern AI tools can help build production-quality applications with robust automation, comprehensive testing, and high code quality standards. All major architectural decisions, code design patterns, and development direction have been made and supervised by the human developer, with AI assistance used as a productivity tool for implementation.
+This project serves as an **experiment in AI-assisted software development**, exploring how modern AI tools can h## Contributing
+
+We welcome contributions! Please see [DEVELOPMENT.md](DEVELOPMENT.md) for detailed development guidelines including:
+
+- 🔧 **Build Modes**: Development vs Production builds
+- 🔍 **Debug Logging**: Automatic detection and manual overrides  
+- 🧪 **Testing**: Comprehensive test suites and coverage
+- 📦 **Release Process**: Automated and manual release workflows
+
+**Quick start for contributors:**
+- Fork the repo and create a feature branch
+- Follow the atomic design and modular code guidelines
+- Write unit and E2E tests for new features
+- Ensure production builds work: `make build-prod`
+- Submit a pull request with a clear description
+
+For major changes, please open an issue first to discuss what you'd like to change.production-quality applications with robust automation, comprehensive testing, and high code quality standards. All major architectural decisions, code design patterns, and development direction have been made and supervised by the human developer, with AI assistance used as a productivity tool for implementation.
 
 The development process leverages AI assistance for:
 
@@ -46,8 +62,9 @@ Visit [Releases](https://github.com/JTBranch/SecurePasswordManager/releases/late
 
 ```bash
 # Development
-make dev          # Run in development mode
-make build        # Build binary
+make dev          # Run in development mode (with debug logs)
+make build        # Build binary for development
+make build-prod   # Build binary for production (no debug logs)
 make test         # Run tests
 
 # Releases (requires GitHub CLI)
@@ -56,6 +73,46 @@ make release-patch    # v1.0.0 -> v1.0.1
 make release-minor    # v1.0.0 -> v1.1.0
 make release-major    # v1.0.0 -> v2.0.0
 ```
+
+## 🔧 Build Modes
+
+The application supports two distinct build modes to optimize for different environments:
+
+### 🛠️ **Development Mode**
+- **Debug Logging**: Full debug output for troubleshooting
+- **Local Storage**: Secrets stored in project directory  
+- **Hot Reload**: Live code updates (with `make dev-watch`)
+- **Version Detection**: Automatically detected when running from source
+
+```bash
+make dev          # Run with debug logging
+make build        # Build development binary
+go run ./cmd      # Direct execution (debug mode)
+```
+
+### 🚀 **Production Mode**  
+- **Clean Output**: No debug logs for end users
+- **Secure Storage**: OS-appropriate config directories
+- **Optimized**: Reduced binary size and logging overhead
+- **Version Injection**: Build-time version embedding
+
+```bash
+make build-prod   # Build production binary (no debug logs)
+```
+
+### 🔀 **Build Mode Detection**
+
+The application automatically detects its running mode:
+
+| Build Type | Debug Logs | Detection Method |
+|------------|------------|------------------|
+| `make dev` / `go run` | ✅ Enabled | Version = "dev" |
+| `make build` | ✅ Enabled | Version = "dev" |
+| `make build-prod` | ❌ Disabled | Version = "1.0.0" |
+| CI/Release builds | ❌ Disabled | Version = tag/CI environment |
+| fyne-cross builds | ❌ Disabled | No version = production default |
+
+**Manual Override**: Set `DEV_MODE=true` environment variable to force debug logging in any build.
 
 ## Testing
 
@@ -163,8 +220,15 @@ make release-prerelease # 1.0.0 → 1.0.1-rc.1 (pre-release)
 Every release automatically generates optimized binaries for:
 
 - **Linux x64** (`GOOS=linux GOARCH=amd64`)
-- **macOS ARM64** (`GOOS=darwin GOARCH=arm64`) - Apple Silicon
+- **macOS ARM64** (`GOOS=darwin GOARCH=arm64`) - Apple Silicon  
+- **macOS Intel** (`GOOS=darwin GOARCH=amd64`) - Intel processors
 - **Windows x64** (`GOOS=windows GOARCH=amd64`)
+
+**Production Quality:**
+- ✅ **No debug logs** - Clean user experience
+- ✅ **Version injection** - Proper version detection (macOS builds)
+- ✅ **Optimized storage** - OS-appropriate config directories
+- ✅ **Cross-compilation** - fyne-cross for Windows/Linux, native builds for macOS
 
 ### 🔄 Release Workflow
 
@@ -242,15 +306,17 @@ go mod tidy
 The easiest way to get started is using the Makefile:
 
 ```sh
-# Run in development mode
+# Run in development mode (with debug logging)
 make dev
 
 # Run with hot reload (install air first with `make install-deps`)
 make dev-watch
 
-# Build and run in production mode
+# Build development binary (includes debug logging)
 make build
-make run
+
+# Build production binary (clean output, no debug logs)
+make build-prod
 ```
 
 ### Available Commands
@@ -259,7 +325,8 @@ make run
 | ------------------------- | ---------------------------------------------- |
 | **Development**           |                                                |
 | `make dev`                | Run in development mode with debug logging     |
-| `make build`              | Build the application binary                   |
+| `make build`              | Build development binary with debug logging    |
+| `make build-prod`         | Build production binary (no debug logs)       |
 | **Testing**               |                                                |
 | `make test-unit`          | Run unit tests with race detection             |
 | `make test-integration`   | Run integration tests with coverage            |
@@ -281,22 +348,40 @@ make run
 
 ### Environment Variables
 
-The application supports different environments controlled by the `GO_PASSWORD_MANAGER_ENV` variable:
+The application supports different environments and logging modes:
 
-- **Development Mode (default):**
+#### **Build-Time Configuration**
 
-  - `secrets.json` stored in project root
-  - Debug logging enabled
-  - Suitable for development and testing
+- **Development Builds** (`make dev`, `make build`)
+  - Debug logging: **Enabled**
+  - Version detection: `"dev"`
+  - Storage: Project root directory
 
-- **Production Mode:**
-  - Set `GO_PASSWORD_MANAGER_ENV=prod`
-  - `secrets.json` stored in OS user config directory:
-    - **macOS:** `~/Library/Application Support/GoPasswordManager/secrets.json`
-    - **Linux:** `~/.config/GoPasswordManager/secrets.json`
-    - **Windows:** `%APPDATA%\GoPasswordManager\secrets.json`
-  - Minimal logging
-  - Secure file permissions
+- **Production Builds** (`make build-prod`, CI releases)
+  - Debug logging: **Disabled** 
+  - Version injection: Semantic version (e.g., `"1.0.0"`)
+  - Storage: OS user config directory
+
+#### **Runtime Environment Variables**
+
+- **`DEV_MODE=true`** - Force enable debug logging in any build
+- **`GO_PASSWORD_MANAGER_ENV=prod`** - Force production storage location
+- **`CI=true`** - Detected automatically in CI environments (forces production mode)
+
+#### **Storage Locations**
+
+**Development Mode:**
+- `secrets.json` stored in project root
+- Debug logging enabled
+- Suitable for development and testing
+
+**Production Mode:**
+- `secrets.json` stored in OS user config directory:
+  - **macOS:** `~/Library/Application Support/GoPasswordManager/secrets.json`
+  - **Linux:** `~/.config/GoPasswordManager/secrets.json`
+  - **Windows:** `%APPDATA%\GoPasswordManager\secrets.json`
+- Clean output (no debug logs)
+- Secure file permissions
 
 ### Data Structure
 
@@ -378,7 +463,10 @@ The project features a comprehensive GitHub Actions pipeline with:
 
 ### 🚀 **Automated Deployment**
 
-- **Multi-Platform Builds**: Linux, macOS (ARM64), Windows binaries
+- **Multi-Platform Builds**: Linux, macOS (ARM64 + Intel), Windows binaries
+- **Production Quality**: Clean output with no debug logs in releases
+- **Version Injection**: Automatic version embedding for macOS builds
+- **Smart Detection**: fyne-cross builds default to production mode
 - **Semantic Versioning**: Automatic version bumping via conventional commits
 - **Release Automation**: CI-dependent releases with comprehensive artifacts
 - **GitHub Releases**: Automatic release creation with binaries and notes
@@ -445,7 +533,8 @@ go-password-manager/
 │   ├── config/            # Configuration management
 │   ├── crypto/            # Encryption/decryption
 │   ├── domain/            # Data models and types
-│   ├── logger/            # Logging utilities
+│   ├── env/               # Environment detection & build modes
+│   ├── logger/            # Conditional logging system
 │   ├── service/           # Business logic services
 │   ├── storage/           # File storage handling
 │   └── versioning/        # Version management
@@ -456,6 +545,10 @@ go-password-manager/
 │   └── e2e/               # UI end-to-end tests
 ├── tests/                 # Test suites
 │   └── e2e/               # End-to-end workflow tests
+├── scripts/               # Build automation
+│   ├── build-macos.sh     # Native macOS builds with version injection
+│   ├── build-windows.sh   # Cross-compiled Windows builds  
+│   └── build-linux.sh     # Cross-compiled Linux builds
 ├── Makefile              # Build and development commands
 ├── .air.toml             # Hot reload configuration
 └── README.md             # This file
@@ -468,6 +561,8 @@ go-password-manager/
 - **Security First**: All secrets encrypted at rest with AES encryption
 - **Version Control**: Complete audit trail of all secret modifications
 - **Environment Aware**: Separate development and production configurations
+- **Build Mode Detection**: Intelligent debug logging based on build context
+- **Production Ready**: Clean output in releases, verbose logging in development
 
 ## Contributing
 

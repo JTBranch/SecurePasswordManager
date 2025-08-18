@@ -65,7 +65,7 @@ func Load() (*Config, error) {
 		AppName:             getEnv("APP_NAME", "GoPasswordManager"),
 		DefaultWindowWidth:  getEnvInt("DEFAULT_WINDOW_WIDTH", 1600),
 		DefaultWindowHeight: getEnvInt("DEFAULT_WINDOW_HEIGHT", 900),
-		DebugLogging:        getEnvBool("DEBUG_LOGGING", true),
+		DebugLogging:        getEnvBool("DEBUG_LOGGING", isDevMode()),
 		HotReload:           getEnvBool("HOT_RELOAD", false),
 		SecretsFilePath:     getEnv("SECRETS_FILE_PATH", ""),
 		ConfigFilePath:      getEnv("CONFIG_FILE_PATH", ""),
@@ -183,4 +183,51 @@ func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
 		}
 	}
 	return defaultValue
+}
+
+// isDevMode determines if we're in development mode
+// This can be overridden by build flags or environment
+func isDevMode() bool {
+	// Check environment variable override first (allows manual control)
+	if devMode := os.Getenv("DEV_MODE"); devMode != "" {
+		if value, err := strconv.ParseBool(devMode); err == nil {
+			return value
+		}
+	}
+
+	// Check version-based detection
+	return isDevVersion() && !isProductionContext()
+}
+
+// isDevVersion checks if the version indicates development
+func isDevVersion() bool {
+	return version == "development" || version == "dev"
+}
+
+// isProductionContext checks if we're running in a production context
+func isProductionContext() bool {
+	// CI environments are always production
+	if os.Getenv("CI") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
+		return true
+	}
+
+	// Explicit production version
+	if version != "" && version != "development" && version != "dev" {
+		return true
+	}
+
+	return false
+}
+
+// Add version variable that can be set by ldflags
+var version string
+
+// GetVersion returns the current version
+func GetVersion() string {
+	return version
+}
+
+// IsDevMode returns true if running in development mode
+func IsDevMode() bool {
+	return isDevMode()
 }

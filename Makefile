@@ -2,10 +2,13 @@
 
 # Development
 dev:
-	go run ./cmd
+	go run -ldflags "-X go-password-manager/internal/env.version=dev" ./cmd
 
 build:
-	go build -o bin/password-manager ./cmd
+	go build -ldflags "-X go-password-manager/internal/env.version=dev" -o bin/password-manager ./cmd
+
+build-prod:
+	go build -ldflags "-X go-password-manager/internal/env.version=1.0.0" -o bin/password-manager ./cmd
 
 # Testing
 test:

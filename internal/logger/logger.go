@@ -4,18 +4,36 @@ import (
 	"strings"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var log *zap.Logger
+var debugEnabled bool
 
-func init() {
-	l, _ := zap.NewDevelopment()
+// Init initializes the logger with the specified debug mode
+func Init(debug bool) {
+	debugEnabled = debug
+
+	config := zap.NewProductionConfig()
+	if debug {
+		config = zap.NewDevelopmentConfig()
+		config.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	} else {
+		// Production mode: only show INFO and above
+		config.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
+		config.DisableCaller = true
+		config.DisableStacktrace = true
+	}
+
+	l, _ := config.Build()
 	log = l
 }
 
-// Debug logs debug messages
+// Debug logs debug messages only if debug is enabled
 func Debug(msgs ...string) {
-	log.WithOptions(zap.AddCallerSkip(1)).Debug(strings.Join(msgs, " | "))
+	if debugEnabled {
+		log.WithOptions(zap.AddCallerSkip(1)).Debug(strings.Join(msgs, " | "))
+	}
 }
 
 // Info logs info messages

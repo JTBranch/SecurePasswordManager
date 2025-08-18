@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"go-password-manager/internal/env"
+	"go-password-manager/internal/logger"
 	"go-password-manager/ui"
 )
 
@@ -22,7 +23,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("Go Password Manager %s\n", version)
+		fmt.Printf("Go Password Manager %s\n", env.GetVersion())
 		fmt.Printf("Commit: %s\n", commit)
 		fmt.Printf("Built: %s\n", date)
 		os.Exit(0)
@@ -34,8 +35,13 @@ func main() {
 		log.Fatalf("Failed to load environment configuration: %v", err)
 	}
 
+	// Initialize logger with debug setting based on dev mode detection
+	logger.Init(env.IsDevMode())
+
 	// Set version in config if available
-	if version != "dev" {
+	if envVersion := env.GetVersion(); envVersion != "" {
+		config.AppVersion = envVersion
+	} else if version != "dev" {
 		config.AppVersion = version
 	}
 
