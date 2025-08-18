@@ -2,13 +2,15 @@ package setup
 
 import (
 	"fmt"
+	"go-password-manager/internal/config/buildconfig"
+	config "go-password-manager/internal/config/runtimeconfig"
+	"go-password-manager/internal/crypto"
+	"go-password-manager/internal/service"
+	"go-password-manager/internal/storage"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
-
-	"go-password-manager/internal/env"
-	"go-password-manager/internal/service"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
@@ -57,8 +59,8 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 	os.Setenv("TEST_DATA_DIR", suite.testDataDir)
 
 	// Reset global environment config to pick up test settings
-	if _, err := env.Load(); err != nil {
-		suite.t.Fatalf("Failed to load environment configuration: %v", err)
+	if _, err := buildconfig.Load(); err != nil {
+		suite.t.Fatalf("Failed to load build configuration: %v", err)
 	}
 
 	// Create test application
@@ -66,16 +68,33 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 	suite.Window = test.NewWindow(nil)
 	suite.Window.Resize(fyne.NewSize(1200, 800))
 
-	// Initialize secrets service with test configuration
-	suite.SecretsService = service.NewSecretsService(TestVersion, TestUser)
+	// Initialize services
+	buildCfg, err := buildconfig.Load()
+	if err != nil {
+		suite.t.Fatalf("Failed to load build config: %v", err)
+	}
+	configService, err := config.NewConfigService(buildCfg)
+	if err != nil {
+		suite.t.Fatalf("Failed to create config service: %v", err)
+	}
+	cryptoService, err := crypto.NewCryptoService(configService)
+	if err != nil {
+		suite.t.Fatalf("Failed to create crypto service: %v", err)
+	}
+	secretsPath, err := buildCfg.GetSecretsFilePath()
+	if err != nil {
+		suite.t.Fatalf("Failed to get secrets file path: %v", err)
+	}
+	storageService := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "e2e-user")
+	suite.SecretsService = service.NewSecretsService(cryptoService, storageService)
 }
 
 // SetTestDataDir sets the test data directory (for reusing existing test data)
 func (suite *E2ETestSuite) SetTestDataDir(dataDir string) {
 	suite.testDataDir = dataDir
 	os.Setenv("TEST_DATA_DIR", dataDir)
-	if _, err := env.Load(); err != nil {
-		suite.t.Fatalf("Failed to load environment configuration: %v", err)
+	if _, err := buildconfig.Load(); err != nil {
+		suite.t.Fatalf("Failed to load build configuration: %v", err)
 	}
 }
 
@@ -102,7 +121,7 @@ func (suite *E2ETestSuite) Cleanup() {
 	os.Unsetenv("TEST_DATA_DIR")
 
 	// Reload environment configuration to reset to defaults
-	env.Load()
+	buildconfig.Load()
 
 	// Clean up test directory
 	err := os.RemoveAll(suite.testDataDir)

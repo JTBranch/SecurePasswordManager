@@ -5,29 +5,33 @@ A secure, cross-platform password manager with modern GUI interface.
 ## 📥 Quick Install
 
 ### 🍎 **macOS Users**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-macos.sh | bash
 ```
 
 ### 🪟 **Windows Users**
+
 1. Download [install-windows.bat](https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-windows.bat)
 2. Right-click → "Run as administrator"
 
 ### 🐧 **Linux Users**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-linux.sh | bash
 ```
 
 ## 📦 Manual Download
 
-| Platform | File | Size |
-|----------|------|------|
-| 🍎 macOS Apple Silicon (M1/M2/M3) | `go-password-manager-macos-arm64` | ~31MB |
-| 🍎 macOS Intel | `go-password-manager-macos-amd64` | ~33MB |
-| 🪟 Windows | `password-manager-windows-amd64.exe` | ~24MB |
-| 🐧 Linux | `password-manager-linux-amd64` | ~28MB |
+| Platform                          | File                                 | Size  |
+| --------------------------------- | ------------------------------------ | ----- |
+| 🍎 macOS Apple Silicon (M1/M2/M3) | `go-password-manager-macos-arm64`    | ~31MB |
+| 🍎 macOS Intel                    | `go-password-manager-macos-amd64`    | ~33MB |
+| 🪟 Windows                        | `password-manager-windows-amd64.exe` | ~24MB |
+| 🐧 Linux                          | `password-manager-linux-amd64`       | ~28MB |
 
 ### How to run after download:
+
 - **macOS/Linux**: `chmod +x filename && ./filename`
 - **Windows**: Double-click the `.exe` file
 

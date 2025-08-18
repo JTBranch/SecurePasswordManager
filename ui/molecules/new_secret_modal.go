@@ -24,7 +24,7 @@ func NewSecretModal(win fyne.Window, secretsService *service.SecretsService, onS
 			name := nameEntry.Text
 			value := valueEntry.Text
 			if name != "" && value != "" {
-				_ = secretsService.SaveSecret(name, value, "key_value")
+				_ = secretsService.SaveNewSecret(name, value)
 				onSuccess()
 			}
 		}

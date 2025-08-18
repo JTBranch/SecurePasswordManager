@@ -35,7 +35,7 @@ func testCreateEditDeleteWorkflow(reporter *reporting.TestWrapper, secretsServic
 	require.NoError(reporter.T(), err, "Failed to create secret")
 
 	// Test 2: Load and verify secret
-	fileData, err := secretsService.LoadLatestSecrets()
+	fileData, err := secretsService.LoadAllSecrets()
 	require.NoError(reporter.T(), err, "Failed to load secrets")
 
 	require.NotEmpty(reporter.T(), fileData.Secrets, "Expected at least 1 secret, got 0")
@@ -52,7 +52,7 @@ func testCreateEditDeleteWorkflow(reporter *reporting.TestWrapper, secretsServic
 	require.NotNil(reporter.T(), foundSecret, "Could not find test secret '%s'", secretName)
 
 	// Test 3: Display secret (decrypt)
-	decrypted, err := secretsService.DisplaySecret(*foundSecret)
+	decrypted, err := secretsService.GetSecretValue(foundSecret)
 	require.NoError(reporter.T(), err, "Failed to decrypt secret")
 
 	assert.Equal(reporter.T(), secretValue, decrypted, "Expected secret value '%s', got '%s'", secretValue, decrypted)
@@ -72,11 +72,11 @@ func testEditSecretWorkflow(reporter *reporting.TestWrapper, secretsService *ser
 	// Test 4: Edit secret (create new version) using unique data
 	newValue := uniqueComplexSecret.Value
 
-	err = secretsService.EditSecret(secretName, newValue)
+	err = secretsService.UpdateSecret(secretName, newValue)
 	require.NoError(reporter.T(), err, "Failed to edit secret")
 
 	// Test 5: Verify edit created new version
-	fileData, err := secretsService.LoadLatestSecrets()
+	fileData, err := secretsService.LoadAllSecrets()
 	require.NoError(reporter.T(), err, "Failed to reload secrets after edit")
 
 	// Find and verify our secret
@@ -93,7 +93,7 @@ func testEditSecretWorkflow(reporter *reporting.TestWrapper, secretsService *ser
 	assert.GreaterOrEqual(reporter.T(), foundSecret.CurrentVersion, 2, "Expected version >= 2 after edit, got %d", foundSecret.CurrentVersion)
 
 	// Test 6: Verify current value is updated
-	currentValue, err := secretsService.DisplaySecret(*foundSecret)
+	currentValue, err := secretsService.GetSecretValue(foundSecret)
 	require.NoError(reporter.T(), err, "Failed to display current secret value")
 
 	assert.Equal(reporter.T(), newValue, currentValue, "Expected current value '%s', got '%s'", newValue, currentValue)
@@ -105,7 +105,7 @@ func testDeleteSecretWorkflow(reporter *reporting.TestWrapper, secretsService *s
 	require.NoError(reporter.T(), err, "Failed to delete secret")
 
 	// Test 8: Verify deletion
-	fileData, err := secretsService.LoadLatestSecrets()
+	fileData, err := secretsService.LoadAllSecrets()
 	require.NoError(reporter.T(), err, "Failed to reload secrets after deletion")
 
 	// Ensure the deleted secret is not present
@@ -125,7 +125,7 @@ func TestErrorHandlingIntegration(t *testing.T) {
 
 func testErrorHandling(reporter *reporting.TestWrapper, secretsService *service.SecretsService) {
 	// Test 1: Load secrets when none exist
-	fileData, err := secretsService.LoadLatestSecrets()
+	fileData, err := secretsService.LoadAllSecrets()
 	require.NoError(reporter.T(), err, "Should not fail when no secrets file exists")
 	assert.Empty(reporter.T(), fileData.Secrets, "Expected no secrets, but found some")
 

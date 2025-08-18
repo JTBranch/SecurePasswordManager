@@ -3,25 +3,28 @@ package crypto
 import (
 	"crypto/rand"
 	"errors"
-	"go-password-manager/internal/config"
-	"go-password-manager/internal/env"
+	"go-password-manager/internal/config/buildconfig"
+	config "go-password-manager/internal/config/runtimeconfig"
 	"os"
 	"path/filepath"
 )
 
 func keyFilePath(keyUUID string) (string, error) {
-	envConfig := env.Get()
+	buildCfg, err := buildconfig.Load()
+	if err != nil {
+		return "", err
+	}
 
-	if envConfig.IsTest() && envConfig.TestDataDir != "" {
+	if buildCfg.IsTest() && buildCfg.Testing.DataDir != "" {
 		// For tests, use test data directory
-		keyDir := filepath.Join(envConfig.TestDataDir, "keys")
+		keyDir := filepath.Join(buildCfg.Testing.DataDir, "keys")
 		if err := os.MkdirAll(keyDir, 0700); err != nil {
 			return "", err
 		}
 		return filepath.Join(keyDir, "."+keyUUID), nil
 	}
 
-	if envConfig.IsDevelopment() {
+	if buildCfg.IsDevelopment() {
 		// For development, use current directory
 		keyDir := "keys"
 		if err := os.MkdirAll(keyDir, 0700); err != nil {
@@ -35,7 +38,7 @@ func keyFilePath(keyUUID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	appConfigDir := filepath.Join(configDir, envConfig.AppName)
+	appConfigDir := filepath.Join(configDir, buildCfg.Application.Name)
 	if err := os.MkdirAll(appConfigDir, 0700); err != nil {
 		return "", err
 	}
@@ -43,15 +46,17 @@ func keyFilePath(keyUUID string) (string, error) {
 }
 
 // LoadOrCreateKey loads an existing encryption key or creates a new one
-func LoadOrCreateKey() ([]byte, error) {
-	envConfig := env.Get()
+func LoadOrCreateKey(cfgService *config.ConfigService) ([]byte, error) {
+	buildCfg, err := buildconfig.Load()
+	if err != nil {
+		return nil, err
+	}
 
 	// Generate a default key UUID if config service is not available
 	keyUUID := "default-key"
 
 	// Try to get the actual key UUID from config service
-	cfgService, err := config.NewConfigService()
-	if err == nil && cfgService.Config.KeyUUID != "" {
+	if cfgService != nil && cfgService.Config.KeyUUID != "" {
 		keyUUID = cfgService.Config.KeyUUID
 	}
 
@@ -63,7 +68,7 @@ func LoadOrCreateKey() ([]byte, error) {
 	// Check if key file exists
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		// Create new key
-		keySize := envConfig.EncryptionKeySize
+		keySize := buildCfg.Security.Encryption.KeySize
 		if keySize == 0 {
 			keySize = 32 // Default to AES-256
 		}

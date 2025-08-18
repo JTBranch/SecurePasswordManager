@@ -1,6 +1,7 @@
-package envconfig
+package buildconfig
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -70,6 +71,24 @@ type TestingConfig struct {
 	Cleanup  bool   `yaml:"cleanup"`
 }
 
+// findProjectRoot finds the root of the project by looking for go.mod
+func findProjectRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", errors.New("go.mod not found")
+		}
+		dir = parent
+	}
+}
+
 var globalConfig *Config
 
 // Load loads configuration from YAML files and environment variables
@@ -80,20 +99,28 @@ func Load() (*Config, error) {
 		env = "development" // Default to development
 	}
 
-	// Load default config first
-	config, err := loadConfigFile("configs/default.yaml")
+	root, err := findProjectRoot()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load default config: %w", err)
+		return nil, fmt.Errorf("failed to find project root: %w", err)
 	}
 
-	// Load environment-specific config and merge
-	envConfigPath := fmt.Sprintf("configs/%s.yaml", env)
-	if _, err := os.Stat(envConfigPath); err == nil {
-		envConfig, err := loadConfigFile(envConfigPath)
+	// Try to load environment-specific config first
+	envConfigPath := filepath.Join(root, "configs", fmt.Sprintf("%s.yaml", env))
+	var config *Config
+
+	if _, statErr := os.Stat(envConfigPath); statErr == nil {
+		// if it exists, load it
+		config, err = loadConfigFile(envConfigPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load %s config: %w", env, err)
 		}
-		config = mergeConfigs(config, envConfig)
+	} else {
+		// otherwise, fall back to default
+		defaultConfigPath := filepath.Join(root, "configs", "default.yaml")
+		config, err = loadConfigFile(defaultConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load default config: %w", err)
+		}
 	}
 
 	// Apply environment variable overrides
@@ -103,18 +130,14 @@ func Load() (*Config, error) {
 	return config, nil
 }
 
-// Get returns the global config (loads if not already loaded)
+// Get returns the loaded configuration
 func Get() *Config {
-	if globalConfig == nil {
-		// Auto-load if not already loaded
-		Load()
-	}
 	return globalConfig
 }
 
-// loadConfigFile loads a YAML configuration file
-func loadConfigFile(filepath string) (*Config, error) {
-	data, err := ioutil.ReadFile(filepath)
+// loadConfigFile loads a configuration file from the given path
+func loadConfigFile(path string) (*Config, error) {
+	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -125,71 +148,6 @@ func loadConfigFile(filepath string) (*Config, error) {
 	}
 
 	return &config, nil
-}
-
-// mergeConfigs merges environment-specific config into base config
-func mergeConfigs(base, override *Config) *Config {
-	// Create a copy of base config
-	result := *base
-
-	// Merge each section only if values are non-empty/non-zero
-	if override.Application.Name != "" {
-		result.Application.Name = override.Application.Name
-	}
-	if override.Application.Version != "" {
-		result.Application.Version = override.Application.Version
-	}
-	if override.Application.Environment != "" {
-		result.Application.Environment = override.Application.Environment
-	}
-
-	if override.UI.Window.Width != 0 {
-		result.UI.Window.Width = override.UI.Window.Width
-	}
-	if override.UI.Window.Height != 0 {
-		result.UI.Window.Height = override.UI.Window.Height
-	}
-	if override.UI.Theme != "" {
-		result.UI.Theme = override.UI.Theme
-	}
-
-	if override.Logging.Level != "" {
-		result.Logging.Level = override.Logging.Level
-	}
-	if override.Logging.Format != "" {
-		result.Logging.Format = override.Logging.Format
-	}
-	// Override debug setting regardless of value
-	result.Logging.Debug = override.Logging.Debug
-
-	if override.Security.Encryption.KeySize != 0 {
-		result.Security.Encryption.KeySize = override.Security.Encryption.KeySize
-	}
-	if override.Security.Encryption.Algorithm != "" {
-		result.Security.Encryption.Algorithm = override.Security.Encryption.Algorithm
-	}
-
-	if override.Storage.SecretsFile != "" {
-		result.Storage.SecretsFile = override.Storage.SecretsFile
-	}
-	if override.Storage.ConfigFile != "" {
-		result.Storage.ConfigFile = override.Storage.ConfigFile
-	}
-
-	// Override development settings
-	result.Development.HotReload = override.Development.HotReload
-	result.Development.AutoSave = override.Development.AutoSave
-
-	if override.Testing.Timeout != "" {
-		result.Testing.Timeout = override.Testing.Timeout
-	}
-	if override.Testing.DataDir != "" {
-		result.Testing.DataDir = override.Testing.DataDir
-	}
-	result.Testing.Parallel = override.Testing.Parallel
-	result.Testing.Cleanup = override.Testing.Cleanup
-
-	return &result
 }
 
 // applyEnvOverrides applies environment variable overrides in smaller functions
@@ -291,56 +249,60 @@ func (c *Config) IsTest() bool {
 	return env == "test" || env == "integration-test" || env == "e2e-test"
 }
 
-// GetSecretsFilePath returns the secrets file path based on environment
-func (c *Config) GetSecretsFilePath() string {
-	if c.Storage.SecretsFile != "" && filepath.IsAbs(c.Storage.SecretsFile) {
-		return c.Storage.SecretsFile
+// GetConfigFilePath returns the config file path based on environment
+func (c *Config) GetConfigFilePath() (string, error) {
+	if c.Storage.ConfigFile != "" && filepath.IsAbs(c.Storage.ConfigFile) {
+		return c.Storage.ConfigFile, nil
 	}
 
 	// Use test data directory for tests
 	if c.IsTest() && c.Testing.DataDir != "" {
-		return filepath.Join(c.Testing.DataDir, c.Storage.SecretsFile)
+		return filepath.Join(c.Testing.DataDir, c.Storage.ConfigFile), nil
 	}
 
 	// Use current directory for development
 	if c.IsDevelopment() {
-		return c.Storage.SecretsFile
+		return c.Storage.ConfigFile, nil
 	}
 
 	// Production: use OS-specific config directory
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		return c.Storage.SecretsFile // Fallback
+		return "", fmt.Errorf("failed to get user config directory: %w", err)
 	}
 	appConfigDir := filepath.Join(configDir, c.Application.Name)
-	os.MkdirAll(appConfigDir, 0700)
-	return filepath.Join(appConfigDir, c.Storage.SecretsFile)
+	if err := os.MkdirAll(appConfigDir, 0700); err != nil {
+		return "", fmt.Errorf("failed to create application config directory: %w", err)
+	}
+	return filepath.Join(appConfigDir, c.Storage.ConfigFile), nil
 }
 
-// GetConfigFilePath returns the config file path based on environment
-func (c *Config) GetConfigFilePath() string {
-	if c.Storage.ConfigFile != "" && filepath.IsAbs(c.Storage.ConfigFile) {
-		return c.Storage.ConfigFile
+// GetSecretsFilePath returns the secrets file path based on environment
+func (c *Config) GetSecretsFilePath() (string, error) {
+	if c.Storage.SecretsFile != "" && filepath.IsAbs(c.Storage.SecretsFile) {
+		return c.Storage.SecretsFile, nil
 	}
 
 	// Use test data directory for tests
 	if c.IsTest() && c.Testing.DataDir != "" {
-		return filepath.Join(c.Testing.DataDir, c.Storage.ConfigFile)
+		return filepath.Join(c.Testing.DataDir, c.Storage.SecretsFile), nil
 	}
 
 	// Use current directory for development
 	if c.IsDevelopment() {
-		return c.Storage.ConfigFile
+		return c.Storage.SecretsFile, nil
 	}
 
 	// Production: use OS-specific config directory
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		return c.Storage.ConfigFile // Fallback
+		return "", fmt.Errorf("failed to get user config directory: %w", err)
 	}
 	appConfigDir := filepath.Join(configDir, c.Application.Name)
-	os.MkdirAll(appConfigDir, 0700)
-	return filepath.Join(appConfigDir, c.Storage.ConfigFile)
+	if err := os.MkdirAll(appConfigDir, 0700); err != nil {
+		return "", fmt.Errorf("failed to create application config directory: %w", err)
+	}
+	return filepath.Join(appConfigDir, c.Storage.SecretsFile), nil
 }
 
 // GetTestTimeout returns the test timeout as a duration

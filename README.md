@@ -9,11 +9,12 @@ This project serves as an **experiment in AI-assisted software development**, ex
 We welcome contributions! Please see [DEVELOPMENT.md](DEVELOPMENT.md) for detailed development guidelines including:
 
 - 🔧 **Build Modes**: Development vs Production builds
-- 🔍 **Debug Logging**: Automatic detection and manual overrides  
+- 🔍 **Debug Logging**: Automatic detection and manual overrides
 - 🧪 **Testing**: Comprehensive test suites and coverage
 - 📦 **Release Process**: Automated and manual release workflows
 
 **Quick start for contributors:**
+
 - Fork the repo and create a feature branch
 - Follow the atomic design and modular code guidelines
 - Write unit and E2E tests for new features
@@ -36,6 +37,7 @@ The goal is to demonstrate that AI-assisted development, under proper human guid
 ### 🎯 **One-Click Install** (Recommended for users)
 
 **macOS:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-macos.sh | bash
 ```
@@ -44,6 +46,7 @@ curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main
 Download and run: [install-windows.bat](https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-windows.bat)
 
 **Linux:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-linux.sh | bash
 ```
@@ -51,8 +54,9 @@ curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main
 ### 📦 **Manual Download**
 
 Visit [Releases](https://github.com/JTBranch/SecurePasswordManager/releases/latest) and download:
+
 - **macOS Apple Silicon**: `go-password-manager-macos-arm64`
-- **macOS Intel**: `go-password-manager-macos-amd64` 
+- **macOS Intel**: `go-password-manager-macos-amd64`
 - **Windows**: `password-manager-windows-amd64.exe`
 - **Linux**: `password-manager-linux-amd64`
 
@@ -79,8 +83,9 @@ make release-major    # v1.0.0 -> v2.0.0
 The application supports two distinct build modes to optimize for different environments:
 
 ### 🛠️ **Development Mode**
+
 - **Debug Logging**: Full debug output for troubleshooting
-- **Local Storage**: Secrets stored in project directory  
+- **Local Storage**: Secrets stored in project directory
 - **Hot Reload**: Live code updates (with `make dev-watch`)
 - **Version Detection**: Automatically detected when running from source
 
@@ -90,7 +95,8 @@ make build        # Build development binary
 go run ./cmd      # Direct execution (debug mode)
 ```
 
-### 🚀 **Production Mode**  
+### 🚀 **Production Mode**
+
 - **Clean Output**: No debug logs for end users
 - **Secure Storage**: OS-appropriate config directories
 - **Optimized**: Reduced binary size and logging overhead
@@ -104,13 +110,13 @@ make build-prod   # Build production binary (no debug logs)
 
 The application automatically detects its running mode:
 
-| Build Type | Debug Logs | Detection Method |
-|------------|------------|------------------|
-| `make dev` / `go run` | ✅ Enabled | Version = "dev" |
-| `make build` | ✅ Enabled | Version = "dev" |
-| `make build-prod` | ❌ Disabled | Version = "1.0.0" |
-| CI/Release builds | ❌ Disabled | Version = tag/CI environment |
-| fyne-cross builds | ❌ Disabled | No version = production default |
+| Build Type            | Debug Logs  | Detection Method                |
+| --------------------- | ----------- | ------------------------------- |
+| `make dev` / `go run` | ✅ Enabled  | Version = "dev"                 |
+| `make build`          | ✅ Enabled  | Version = "dev"                 |
+| `make build-prod`     | ❌ Disabled | Version = "1.0.0"               |
+| CI/Release builds     | ❌ Disabled | Version = tag/CI environment    |
+| fyne-cross builds     | ❌ Disabled | No version = production default |
 
 **Manual Override**: Set `DEV_MODE=true` environment variable to force debug logging in any build.
 
@@ -220,11 +226,12 @@ make release-prerelease # 1.0.0 → 1.0.1-rc.1 (pre-release)
 Every release automatically generates optimized binaries for:
 
 - **Linux x64** (`GOOS=linux GOARCH=amd64`)
-- **macOS ARM64** (`GOOS=darwin GOARCH=arm64`) - Apple Silicon  
+- **macOS ARM64** (`GOOS=darwin GOARCH=arm64`) - Apple Silicon
 - **macOS Intel** (`GOOS=darwin GOARCH=amd64`) - Intel processors
 - **Windows x64** (`GOOS=windows GOARCH=amd64`)
 
 **Production Quality:**
+
 - ✅ **No debug logs** - Clean user experience
 - ✅ **Version injection** - Proper version detection (macOS builds)
 - ✅ **Optimized storage** - OS-appropriate config directories
@@ -326,7 +333,7 @@ make build-prod
 | **Development**           |                                                |
 | `make dev`                | Run in development mode with debug logging     |
 | `make build`              | Build development binary with debug logging    |
-| `make build-prod`         | Build production binary (no debug logs)       |
+| `make build-prod`         | Build production binary (no debug logs)        |
 | **Testing**               |                                                |
 | `make test-unit`          | Run unit tests with race detection             |
 | `make test-integration`   | Run integration tests with coverage            |
@@ -353,12 +360,13 @@ The application supports different environments and logging modes:
 #### **Build-Time Configuration**
 
 - **Development Builds** (`make dev`, `make build`)
+
   - Debug logging: **Enabled**
   - Version detection: `"dev"`
   - Storage: Project root directory
 
 - **Production Builds** (`make build-prod`, CI releases)
-  - Debug logging: **Disabled** 
+  - Debug logging: **Disabled**
   - Version injection: Semantic version (e.g., `"1.0.0"`)
   - Storage: OS user config directory
 
@@ -371,11 +379,13 @@ The application supports different environments and logging modes:
 #### **Storage Locations**
 
 **Development Mode:**
+
 - `secrets.json` stored in project root
 - Debug logging enabled
 - Suitable for development and testing
 
 **Production Mode:**
+
 - `secrets.json` stored in OS user config directory:
   - **macOS:** `~/Library/Application Support/GoPasswordManager/secrets.json`
   - **Linux:** `~/.config/GoPasswordManager/secrets.json`
@@ -394,7 +404,7 @@ Configuration files are located in the `configs/` directory:
 ```
 configs/
 ├── default.yaml      # Base configuration (all environments)
-├── development.yaml  # Development overrides  
+├── development.yaml  # Development overrides
 ├── production.yaml   # Production overrides
 └── test.yaml        # Test environment overrides
 ```
@@ -414,7 +424,7 @@ export GO_PASSWORD_MANAGER_ENV=test       # Use test config
 Configuration is loaded in this order (later values override earlier ones):
 
 1. **YAML Default**: `configs/default.yaml`
-2. **YAML Environment**: `configs/{environment}.yaml` 
+2. **YAML Environment**: `configs/{environment}.yaml`
 3. **Environment Variables**: Traditional env vars (highest priority)
 
 #### **Example Configuration**
@@ -423,12 +433,12 @@ Configuration is loaded in this order (later values override earlier ones):
 # configs/production.yaml
 application:
   environment: "production"
-  
+
 logging:
   debug: false
   level: "info"
   format: "json"
-  
+
 ui:
   window:
     width: 1400
@@ -601,7 +611,7 @@ go-password-manager/
 │   └── e2e/               # End-to-end workflow tests
 ├── scripts/               # Build automation
 │   ├── build-macos.sh     # Native macOS builds with version injection
-│   ├── build-windows.sh   # Cross-compiled Windows builds  
+│   ├── build-windows.sh   # Cross-compiled Windows builds
 │   └── build-linux.sh     # Cross-compiled Linux builds
 ├── Makefile              # Build and development commands
 ├── .air.toml             # Hot reload configuration

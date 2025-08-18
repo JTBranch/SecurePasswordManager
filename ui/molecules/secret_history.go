@@ -14,12 +14,13 @@ import (
 )
 
 func SecretHistory(secretName string, secretsService *service.SecretsService, window fyne.Window) fyne.CanvasObject {
-	// Load all versions of this secret
-	versions, err := secretsService.GetSecretVersions(secretName)
-	if err != nil || len(versions) <= 1 {
+	// Load the secret to get its versions
+	secret, err := secretsService.GetSecret(secretName)
+	if err != nil || secret == nil || len(secret.Versions) <= 1 {
 		// If there's an error or only one version, show a simple message
 		return widget.NewLabel("No version history available")
 	}
+	versions := secret.GetVersionsSorted()
 
 	// Create header for history section
 	historyLabel := widget.NewLabel("Version History")
@@ -31,7 +32,7 @@ func SecretHistory(secretName string, secretsService *service.SecretsService, wi
 	// Add each version (skip the latest one since it's shown above)
 	// Versions are sorted descending, so skip the first one (current version)
 	for _, version := range versions[1:] {
-		historyBox.Add(createVersionItem(version, secretsService, window))
+		historyBox.Add(createVersionItem(*secret, version, secretsService, window))
 	}
 
 	return container.NewVBox(
@@ -41,7 +42,7 @@ func SecretHistory(secretName string, secretsService *service.SecretsService, wi
 	)
 }
 
-func createVersionItem(version domain.SecretVersion, secretsService *service.SecretsService, window fyne.Window) fyne.CanvasObject {
+func createVersionItem(secret domain.Secret, version domain.SecretVersion, secretsService *service.SecretsService, window fyne.Window) fyne.CanvasObject {
 	revealed := false
 	var currentPlainValue string
 
@@ -72,7 +73,7 @@ func createVersionItem(version domain.SecretVersion, secretsService *service.Sec
 				revealed = !revealed
 				if revealed {
 					// Decrypt the version directly
-					plain, err := secretsService.DecryptSecretVersion(version)
+					plain, err := secretsService.GetSecretValueByVersion(&secret, version.Version)
 					if err == nil {
 						currentPlainValue = plain
 					}

@@ -1,22 +1,48 @@
 package ui
 
 import (
+	"go-password-manager/internal/config/buildconfig"
+	config "go-password-manager/internal/config/runtimeconfig"
+	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/logger"
 	"go-password-manager/internal/service"
+	"go-password-manager/internal/storage"
 	"go-password-manager/ui/molecules"
+	"log"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 )
 
-var secretsService = service.NewSecretsService("1.0.0", "jack.branch")
+var secretsService *service.SecretsService
+
+func init() {
+	buildCfg, err := buildconfig.Load()
+	if err != nil {
+		log.Fatalf("Failed to load build config: %v", err)
+	}
+	configService, err := config.NewConfigService(buildCfg)
+	if err != nil {
+		log.Fatalf("Failed to create config service: %v", err)
+	}
+	cryptoService, err := crypto.NewCryptoService(configService)
+	if err != nil {
+		log.Fatalf("Failed to create crypto service: %v", err)
+	}
+	secretsPath, err := buildCfg.GetSecretsFilePath()
+	if err != nil {
+		log.Fatalf("Failed to get secrets file path: %v", err)
+	}
+	storageService := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "default-user")
+	secretsService = service.NewSecretsService(cryptoService, storageService)
+}
 
 // CreateMainContent creates the main content of the window, including the secret form and secret list
 func CreateMainContent(window fyne.Window) fyne.CanvasObject {
 	logger.Debug("Creating main content for the UI")
-	fileData, _ := secretsService.LoadLatestSecrets()
+	fileData, _ := secretsService.LoadAllSecrets()
 	var selectedIdx int = -1
 
 	listBox := container.NewVBox()
@@ -28,7 +54,7 @@ func CreateMainContent(window fyne.Window) fyne.CanvasObject {
 
 	refreshDetail := func() {
 		// Reload the data to get the latest version
-		fileData, _ = secretsService.LoadLatestSecrets()
+		fileData, _ = secretsService.LoadAllSecrets()
 		if selectedIdx >= 0 && selectedIdx < len(fileData.Secrets) {
 			updateDetail()
 		}
@@ -47,7 +73,7 @@ func CreateMainContent(window fyne.Window) fyne.CanvasObject {
 
 	// Helper to update the secret list
 	updateList = func() {
-		fileData, _ = secretsService.LoadLatestSecrets()
+		fileData, _ = secretsService.LoadAllSecrets()
 		listBox.Objects = nil
 		for i, s := range fileData.Secrets {
 			listBox.Add(SecretName(s, func(idx int) func() {

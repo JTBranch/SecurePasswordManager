@@ -2,7 +2,7 @@ package config
 
 import (
 	"encoding/json"
-	"go-password-manager/internal/env"
+	"go-password-manager/internal/config/buildconfig"
 	"os"
 	"path/filepath"
 )
@@ -14,16 +14,18 @@ type ConfigService struct {
 }
 
 // NewConfigService creates a new configuration service
-func NewConfigService() (*ConfigService, error) {
-	envConfig := env.Get()
-	path := envConfig.GetConfigFilePath()
+func NewConfigService(buildCfg *buildconfig.Config) (*ConfigService, error) {
+	path, err := buildCfg.GetConfigFilePath()
+	if err != nil {
+		return nil, err
+	}
 
 	var cfg AppConfig
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		cfg = AppConfig{
-			AppVersion:   envConfig.AppVersion,
-			WindowWidth:  envConfig.DefaultWindowWidth,
-			WindowHeight: envConfig.DefaultWindowHeight,
+			AppVersion:   buildCfg.Application.Version,
+			WindowWidth:  buildCfg.UI.Window.Width,
+			WindowHeight: buildCfg.UI.Window.Height,
 		}
 		data, _ := json.MarshalIndent(cfg, "", "  ")
 

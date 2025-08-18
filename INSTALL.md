@@ -5,16 +5,19 @@ A secure, cross-platform password manager with a modern GUI interface.
 ## 📥 Quick Install (Recommended)
 
 ### 🍎 **macOS** (Mac users)
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-macos.sh | bash
 ```
 
 ### 🪟 **Windows** (Windows users)
+
 1. Download: [install-windows.bat](https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-windows.bat)
 2. Right-click the file → "Run as administrator"
 3. Follow the installation prompts
 
 ### 🐧 **Linux** (Linux users)
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-linux.sh | bash
 ```
@@ -24,14 +27,17 @@ curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main
 After installation, you can run the password manager:
 
 ### 🍎 **macOS**
+
 - Double-click "Password Manager.command" on your Desktop
 - Or run from Terminal: `~/Applications/PasswordManager/password-manager`
 
 ### 🪟 **Windows**
+
 - Double-click "Password Manager" shortcut on your Desktop
 - Or navigate to: `%USERPROFILE%\AppData\Local\PasswordManager\password-manager.exe`
 
 ### 🐧 **Linux**
+
 - Find "Go Password Manager" in your applications menu
 - Or run from Terminal: `password-manager`
 

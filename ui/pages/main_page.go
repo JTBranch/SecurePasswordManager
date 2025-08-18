@@ -1,9 +1,14 @@
 package pages
 
 import (
+	"go-password-manager/internal/config/buildconfig"
+	config "go-password-manager/internal/config/runtimeconfig"
+	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/service"
+	"go-password-manager/internal/storage"
 	"go-password-manager/ui/atoms"
 	"go-password-manager/ui/molecules"
+	"log"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -11,14 +16,35 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-var defaultSecretsService = service.NewSecretsService("1.0.0", "jack.branch")
+var defaultSecretsService *service.SecretsService
+
+func init() {
+	buildCfg, err := buildconfig.Load()
+	if err != nil {
+		log.Fatalf("Failed to load build config: %v", err)
+	}
+	configService, err := config.NewConfigService(buildCfg)
+	if err != nil {
+		log.Fatalf("Failed to create config service: %v", err)
+	}
+	cryptoService, err := crypto.NewCryptoService(configService)
+	if err != nil {
+		log.Fatalf("Failed to create crypto service: %v", err)
+	}
+	secretsPath, err := buildCfg.GetSecretsFilePath()
+	if err != nil {
+		log.Fatalf("Failed to get secrets file path: %v", err)
+	}
+	storageService := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "default-user")
+	defaultSecretsService = service.NewSecretsService(cryptoService, storageService)
+}
 
 func MainPage(win fyne.Window) fyne.CanvasObject {
 	return MainPageWithService(win, defaultSecretsService)
 }
 
 func MainPageWithService(win fyne.Window, secretsService *service.SecretsService) fyne.CanvasObject {
-	fileData, _ := secretsService.LoadLatestSecrets()
+	fileData, _ := secretsService.LoadAllSecrets()
 	var selectedIdx int = -1
 	listBox := container.NewVBox()
 	detailBox := container.NewVBox(widget.NewLabel("Select a secret"))
@@ -28,7 +54,7 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 
 	refreshDetail := func() {
 		// Reload the data to get the latest version
-		fileData, _ = secretsService.LoadLatestSecrets()
+		fileData, _ = secretsService.LoadAllSecrets()
 		if selectedIdx >= 0 && selectedIdx < len(fileData.Secrets) {
 			updateDetail()
 		}
@@ -45,7 +71,7 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 	}
 
 	updateList = func() {
-		fileData, _ = secretsService.LoadLatestSecrets()
+		fileData, _ = secretsService.LoadAllSecrets()
 		listBox.Objects = nil
 		for i, s := range fileData.Secrets {
 			listBox.Add(atoms.SecretName(s, func(idx int) func() {
@@ -77,7 +103,7 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 	// --- AppHeader logic moved to component ---
 	header := molecules.AppHeader(molecules.AppHeaderProps{
 		OnSearch: func(query string) {
-			fileData, _ = secretsService.LoadLatestSecrets()
+			fileData, _ = secretsService.LoadAllSecrets()
 			listBox.Objects = nil
 			for i, s := range fileData.Secrets {
 				if query == "" || containsIgnoreCase(s.SecretName, query) {

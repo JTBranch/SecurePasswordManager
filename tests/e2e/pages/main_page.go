@@ -42,13 +42,13 @@ func (p *MainPageObject) LoadPage() {
 
 // GetSecretsCount returns the number of visible secrets in the list
 func (p *MainPageObject) GetSecretsCount() int {
-	secrets, _ := p.secretsService.LoadLatestSecrets()
+	secrets, _ := p.secretsService.LoadAllSecrets()
 	return len(secrets.Secrets)
 }
 
 // IsSecretVisible checks if a secret with the given name is visible in the list
 func (p *MainPageObject) IsSecretVisible(secretName string) bool {
-	secrets, _ := p.secretsService.LoadLatestSecrets()
+	secrets, _ := p.secretsService.LoadAllSecrets()
 	for _, secret := range secrets.Secrets {
 		if secret.SecretName == secretName {
 			return true
@@ -96,7 +96,7 @@ func (p *MainPageObject) SubmitCreateSecretModal() {
 // ClickSecretInList clicks on a secret in the list by name
 func (p *MainPageObject) ClickSecretInList(secretName string) {
 	// Find the secret button in the list
-	secrets, _ := p.secretsService.LoadLatestSecrets()
+	secrets, _ := p.secretsService.LoadAllSecrets()
 	for i, secret := range secrets.Secrets {
 		if secret.SecretName == secretName {
 			// Find the secret button in the UI
@@ -178,7 +178,7 @@ func (p *MainPageObject) UpdateSecretValue(newValue string) {
 
 // GetSecretVersionCount returns the number of versions for the current secret
 func (p *MainPageObject) GetSecretVersionCount(secretName string) int {
-	secrets, _ := p.secretsService.LoadLatestSecrets()
+	secrets, _ := p.secretsService.LoadAllSecrets()
 	for _, secret := range secrets.Secrets {
 		if secret.SecretName == secretName {
 			return len(secret.Versions)
@@ -248,7 +248,7 @@ func (p *MainPageObject) findSecretButtonByIndex(index int) *widget.Button {
 	// In real Fyne UI testing, we would traverse the widget tree
 	// For E2E testing, we validate that the service layer has the secret
 	// and return a mock button to simulate finding it
-	secrets, err := p.secretsService.LoadLatestSecrets()
+	secrets, err := p.secretsService.LoadAllSecrets()
 	if err != nil || index >= len(secrets.Secrets) {
 		return nil
 	}
@@ -268,7 +268,7 @@ func (p *MainPageObject) findDetailPanel() fyne.CanvasObject {
 func (p *MainPageObject) findSecretNameInDetail(detailPanel fyne.CanvasObject) *widget.Label {
 	// For E2E testing, return a mock label with the secret name from service layer
 	// In real implementation, this would traverse the Fyne widget tree to find the label
-	secrets, err := p.secretsService.LoadLatestSecrets()
+	secrets, err := p.secretsService.LoadAllSecrets()
 	if err != nil || len(secrets.Secrets) == 0 {
 		return widget.NewLabel("")
 	}

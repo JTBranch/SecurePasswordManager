@@ -2,9 +2,10 @@ package ui
 
 import (
 	"fmt"
-	"go-password-manager/internal/config"
-	"go-password-manager/internal/env"
+	"go-password-manager/internal/config/buildconfig"
+	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/internal/logger"
+	"go-password-manager/internal/service"
 	"go-password-manager/ui/pages"
 
 	"fyne.io/fyne/v2"
@@ -13,44 +14,46 @@ import (
 
 // App represents the main application
 type App struct {
-	fyneApp       fyne.App
-	window        fyne.Window
-	configService *config.ConfigService
-	envConfig     *env.Config
+	fyneApp        fyne.App
+	window         fyne.Window
+	configService  *config.ConfigService
+	buildConfig    *buildconfig.Config
+	secretsService *service.SecretsService
 }
 
 // NewApp creates a new application instance
-func NewApp(envConfig *env.Config) *App {
+func NewApp(buildCfg *buildconfig.Config, secretsService *service.SecretsService) *App {
 	fyneApp := app.New()
-	window := fyneApp.NewWindow(envConfig.AppName)
+	window := fyneApp.NewWindow(buildCfg.Application.Name)
 
 	// Load legacy config service for window size persistence
-	configService, err := config.NewConfigService()
+	configService, err := config.NewConfigService(buildCfg)
 	if err != nil {
 		// Use environment config defaults
 		window.Resize(fyne.NewSize(
-			float32(envConfig.DefaultWindowWidth),
-			float32(envConfig.DefaultWindowHeight),
+			float32(buildCfg.UI.Window.Width),
+			float32(buildCfg.UI.Window.Height),
 		))
 	} else {
 		width, height := configService.GetWindowSize()
-		if envConfig.DebugLogging {
+		if buildCfg.Logging.Debug {
 			logger.Debug(fmt.Sprintf("Loaded window size from config, width: %d, height: %d", width, height))
 		}
 		window.Resize(fyne.NewSize(float32(width), float32(height)))
 	}
 
 	return &App{
-		fyneApp:       fyneApp,
-		window:        window,
-		configService: configService,
-		envConfig:     envConfig,
+		fyneApp:        fyneApp,
+		window:         window,
+		configService:  configService,
+		buildConfig:    buildCfg,
+		secretsService: secretsService,
 	}
 }
 
 // Run starts the application
 func (a *App) Run() {
-	a.window.SetContent(pages.MainPage(a.window))
+	a.window.SetContent(pages.MainPageWithService(a.window, a.secretsService))
 
 	// Save window size on close
 	a.window.SetOnClosed(func() {

@@ -192,7 +192,7 @@ func (tm *TestDataManager) CreateTestSecret(service *service.SecretsService, sec
 		return fmt.Errorf("failed to get test secret: %w", err)
 	}
 
-	return service.SaveSecret(testSecret.Name, testSecret.Value, testSecret.Type)
+	return service.SaveNewSecret(testSecret.Name, testSecret.Value)
 }
 
 // CreateTestSecrets creates multiple test secrets in the service
@@ -222,7 +222,7 @@ func (tm *TestDataManager) CreateScenarioSecrets(service *service.SecretsService
 	}
 
 	for _, secret := range scenario.Secrets {
-		if err := service.SaveSecret(secret.Name, secret.Value, secret.Type); err != nil {
+		if err := service.SaveNewSecret(secret.Name, secret.Value); err != nil {
 			return fmt.Errorf("failed to create secret '%s' from scenario: %w", secret.Name, err)
 		}
 	}
@@ -413,7 +413,7 @@ func (tm *TestDataManager) CreateUniqueTestSecret(service *service.SecretsServic
 
 	uniqueSecret := tm.uniqueGenerator.GenerateUniqueSecret(template, testName)
 
-	err := service.SaveSecret(uniqueSecret.UniqueName, uniqueSecret.Value, uniqueSecret.Type)
+	err := service.SaveNewSecret(uniqueSecret.UniqueName, uniqueSecret.Value)
 	if err != nil {
 		return UniqueTestSecret{}, fmt.Errorf("failed to create unique test secret: %w", err)
 	}

@@ -2,8 +2,10 @@ package service_test
 
 import (
 	"encoding/json"
+	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/service"
+	"go-password-manager/internal/storage"
 	"go-password-manager/tests/helpers"
 	"go-password-manager/tests/testdata"
 	"os"
@@ -19,13 +21,35 @@ const (
 	errLoadSecrets  = "Expected no error loading secrets"
 )
 
+// Mock CryptoService for testing
+type mockCryptoService struct {
+	key []byte
+}
+
+func newMockCryptoService(key []byte) service.CryptoService {
+	return &mockCryptoService{key: key}
+}
+
+func (m *mockCryptoService) Encrypt(data, key []byte) ([]byte, error) {
+	s, err := crypto.Encrypt(data, key)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(s), nil
+}
+
+func (m *mockCryptoService) Decrypt(data, key []byte) ([]byte, error) {
+	return crypto.Decrypt(string(data), key)
+}
+
+func (m *mockCryptoService) GetKey() []byte {
+	return m.key
+}
+
 // setupTestService creates a new SecretsService for testing, with a temporary file.
 func setupTestService(t *testing.T) *service.SecretsService {
 	tempDir := t.TempDir()
 	testFile := filepath.Join(tempDir, testSecretsFile)
-
-	svc := service.New("1.0.0", testdata.TestUsers.UnitTestUser.Name, testFile)
-	svc.SetEncryptionKey([]byte(testdata.TestEncryptionKey))
 
 	// Create an empty secrets file to ensure tests start with a clean slate.
 	emptySecretsFile := domain.SecretsFile{
@@ -43,6 +67,11 @@ func setupTestService(t *testing.T) *service.SecretsService {
 		t.Fatalf("Failed to write empty secrets file: %v", err)
 	}
 
+	cryptoService := newMockCryptoService([]byte(testdata.TestEncryptionKey))
+	storageService := storage.NewFileStorage(testFile, "1.0.0", testdata.TestUsers.UnitTestUser.Name)
+
+	svc := service.NewSecretsService(cryptoService, storageService)
+
 	return svc
 }
 
@@ -50,10 +79,10 @@ func TestSecretsService(t *testing.T) {
 	helpers.WithUnitTestCase(t, "CreateSecret", func(tc *helpers.UnitTestCase) {
 		svc := setupTestService(t)
 
-		err := svc.SaveSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value, "key_value")
+		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
 		tc.Require.NoError(err, errCreateSecret)
 
-		fileData, err := svc.LoadLatestSecrets()
+		fileData, err := svc.LoadAllSecrets()
 		tc.Require.NoError(err, errLoadSecrets)
 
 		tc.Assert.Len(fileData.Secrets, 1, "Expected 1 secret")
@@ -66,13 +95,13 @@ func TestSecretsService(t *testing.T) {
 	helpers.WithUnitTestCase(t, "EditSecret", func(tc *helpers.UnitTestCase) {
 		svc := setupTestService(t)
 
-		err := svc.SaveSecret(testdata.TestSecrets.Simple.Name, "initial-value", "key_value")
+		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, "initial-value")
 		tc.Require.NoError(err, errCreateSecret)
 
-		err = svc.EditSecret(testdata.TestSecrets.Simple.Name, "updated-value")
+		err = svc.UpdateSecret(testdata.TestSecrets.Simple.Name, "updated-value")
 		tc.Require.NoError(err, "Expected no error editing secret")
 
-		fileData, err := svc.LoadLatestSecrets()
+		fileData, err := svc.LoadAllSecrets()
 		tc.Require.NoError(err, errLoadSecrets)
 
 		tc.Assert.Len(fileData.Secrets, 1, "Should still have 1 secret")
@@ -84,13 +113,13 @@ func TestSecretsService(t *testing.T) {
 	helpers.WithUnitTestCase(t, "DeleteSecret", func(tc *helpers.UnitTestCase) {
 		svc := setupTestService(t)
 
-		err := svc.SaveSecret(testdata.TestSecrets.Temporary.Name, testdata.TestSecrets.Temporary.Value, "key_value")
+		err := svc.SaveNewSecret(testdata.TestSecrets.Temporary.Name, testdata.TestSecrets.Temporary.Value)
 		tc.Require.NoError(err, errCreateSecret)
 
 		err = svc.DeleteSecret(testdata.TestSecrets.Temporary.Name)
 		tc.Require.NoError(err, "Expected no error deleting secret")
 
-		fileData, err := svc.LoadLatestSecrets()
+		fileData, err := svc.LoadAllSecrets()
 		tc.Require.NoError(err, errLoadSecrets)
 		tc.Assert.Len(fileData.Secrets, 0, "Expected 0 secrets after deletion")
 	})
@@ -98,7 +127,7 @@ func TestSecretsService(t *testing.T) {
 	helpers.WithUnitTestCase(t, "GetSecret", func(tc *helpers.UnitTestCase) {
 		svc := setupTestService(t)
 
-		err := svc.SaveSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value, "key_value")
+		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
 		tc.Require.NoError(err, errCreateSecret)
 
 		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
@@ -117,30 +146,59 @@ func TestSecretsService(t *testing.T) {
 	helpers.WithUnitTestCase(t, "GetSecretValue", func(tc *helpers.UnitTestCase) {
 		svc := setupTestService(t)
 
-		err := svc.SaveSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value, "key_value")
+		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
 		tc.Require.NoError(err, errCreateSecret)
 
-		value, err := svc.GetSecretValue(testdata.TestSecrets.Simple.Name, 1)
+		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
+		tc.Require.NoError(err, "getting secret failed")
+
+		value, err := svc.GetSecretValue(secret)
 		tc.Require.NoError(err, "Expected no error getting secret value")
 		tc.Assert.Equal(testdata.TestSecrets.Simple.Value, value, "Secret value should match")
+	})
+
+	helpers.WithUnitTestCase(t, "GetSecretValueByVersion", func(tc *helpers.UnitTestCase) {
+		svc := setupTestService(t)
+
+		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, "value1")
+		tc.Require.NoError(err, errCreateSecret)
+		err = svc.UpdateSecret(testdata.TestSecrets.Simple.Name, "value2")
+		tc.Require.NoError(err, "updating secret failed")
+
+		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
+		tc.Require.NoError(err, "getting secret failed")
+
+		value, err := svc.GetSecretValueByVersion(secret, 1)
+		tc.Require.NoError(err, "Expected no error getting secret value")
+		tc.Assert.Equal("value1", value, "Secret value should match")
+
+		value, err = svc.GetSecretValueByVersion(secret, 2)
+		tc.Require.NoError(err, "Expected no error getting secret value")
+		tc.Assert.Equal("value2", value, "Secret value should match")
 	})
 
 	helpers.WithUnitTestCase(t, "GetSecretValueInvalidVersion", func(tc *helpers.UnitTestCase) {
 		svc := setupTestService(t)
 
-		err := svc.SaveSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value, "key_value")
+		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
 		tc.Require.NoError(err, errCreateSecret)
 
-		_, err = svc.GetSecretValue(testdata.TestSecrets.Simple.Name, 99)
+		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
+		tc.Require.NoError(err, "getting secret failed")
+
+		_, err = svc.GetSecretValueByVersion(secret, 99)
 		tc.Assert.Error(err, "Expected error for invalid version")
 	})
 
-	helpers.WithUnitTestCase(t, "LoadLatestSecretsFileNotFound", func(tc *helpers.UnitTestCase) {
+	helpers.WithUnitTestCase(t, "LoadAllSecretsFileNotFound", func(tc *helpers.UnitTestCase) {
 		tempDir := t.TempDir()
-		svc := service.New("1.0.0", testdata.TestUsers.UnitTestUser.Name, filepath.Join(tempDir, "non_existent_file.json"))
-		svc.SetEncryptionKey([]byte(testdata.TestEncryptionKey))
 
-		fileData, err := svc.LoadLatestSecrets()
+		cryptoService := newMockCryptoService([]byte(testdata.TestEncryptionKey))
+		storageService := storage.NewFileStorage(filepath.Join(tempDir, "non_existent_file.json"), "1.0.0", testdata.TestUsers.UnitTestUser.Name)
+
+		svc := service.NewSecretsService(cryptoService, storageService)
+
+		fileData, err := svc.LoadAllSecrets()
 		tc.Require.NoError(err, "Expected no error when file does not exist")
 		tc.Assert.NotNil(fileData, "Expected non-nil file data")
 		tc.Assert.Empty(fileData.Secrets, "Expected no secrets in new file")

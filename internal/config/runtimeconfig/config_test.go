@@ -1,7 +1,8 @@
 package config_test
 
 import (
-	"go-password-manager/internal/config"
+	"go-password-manager/internal/config/buildconfig"
+	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/tests/helpers"
 	"testing"
 )
@@ -10,8 +11,10 @@ const errCreateConfigService = "Expected no error creating ConfigService, got: %
 
 func TestConfigService(t *testing.T) {
 	helpers.WithUnitTestCase(t, "Basic", func(tc *helpers.UnitTestCase) {
+		buildCfg, err := buildconfig.Load()
+		tc.Require.NoError(err, "Failed to load build config")
 		// Test NewConfigService
-		service, err := config.NewConfigService()
+		service, err := config.NewConfigService(buildCfg)
 		tc.Require.NoError(err, "Expected no error creating ConfigService")
 		tc.Assert.NotNil(service, "Expected NewConfigService to return non-nil service")
 		tc.Assert.NotNil(service.Config, "Expected ConfigService to have non-nil Config")
@@ -23,7 +26,9 @@ func TestConfigService(t *testing.T) {
 	})
 
 	helpers.WithUnitTestCase(t, "SetWindowSize", func(tc *helpers.UnitTestCase) {
-		service, err := config.NewConfigService()
+		buildCfg, err := buildconfig.Load()
+		tc.Require.NoError(err, "Failed to load build config")
+		service, err := config.NewConfigService(buildCfg)
 		tc.Require.NoError(err, errCreateConfigService)
 
 		// Test SetWindowSize
@@ -43,8 +48,9 @@ func TestConfigService(t *testing.T) {
 		// Since we can't access the unexported path function, we'll rely on the fact
 		// that NewConfigService will create a default one if it doesn't exist.
 		// We'll save, then create a new service to see if it loads the saved data.
-
-		service1, err := config.NewConfigService()
+		buildCfg, err := buildconfig.Load()
+		tc.Require.NoError(err, "Failed to load build config")
+		service1, err := config.NewConfigService(buildCfg)
 		tc.Require.NoError(err, errCreateConfigService)
 
 		// Modify config
@@ -56,7 +62,7 @@ func TestConfigService(t *testing.T) {
 		tc.Require.NoError(err, "Expected no error saving config")
 
 		// Create new service to verify persistence
-		service2, err := config.NewConfigService()
+		service2, err := config.NewConfigService(buildCfg)
 		tc.Require.NoError(err, "Expected no error creating new ConfigService")
 
 		// Verify loaded config matches saved config
@@ -65,7 +71,7 @@ func TestConfigService(t *testing.T) {
 
 		// Cleanup: We can't easily get the path, but we can save a default config
 		// to avoid interfering with other tests or runs.
-		serviceDefault, _ := config.NewConfigService()
+		serviceDefault, _ := config.NewConfigService(buildCfg)
 		serviceDefault.Config.WindowWidth = 800
 		serviceDefault.Config.WindowHeight = 600
 		serviceDefault.Save()
@@ -76,7 +82,9 @@ func TestConfigService(t *testing.T) {
 		// A true test would involve deleting the file. We will trust that if `SaveAndLoad`
 		// works, the file path logic is correct. We'll test that a new service
 		// has default values, which is the behavior when a file is non-existent.
-		service, err := config.NewConfigService()
+		buildCfg, err := buildconfig.Load()
+		tc.Require.NoError(err, "Failed to load build config")
+		service, err := config.NewConfigService(buildCfg)
 		tc.Require.NoError(err, "Expected no error creating service")
 
 		// Should have default values

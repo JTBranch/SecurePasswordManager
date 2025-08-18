@@ -45,7 +45,7 @@ func SecretDetail(secret domain.Secret, secretsService *service.SecretsService, 
 				if !editMode { // Only allow reveal/hide when not in edit mode
 					revealed = !revealed
 					if revealed {
-						plain, err := secretsService.DisplaySecret(secret)
+						plain, err := secretsService.GetSecretValue(&secret)
 						if err == nil {
 							currentPlainValue = plain
 						}
@@ -74,7 +74,7 @@ func SecretDetail(secret domain.Secret, secretsService *service.SecretsService, 
 			editBtn.SetText("💾") // Save icon
 
 			// Get current value and show in entry
-			plain, err := secretsService.DisplaySecret(secret)
+			plain, err := secretsService.GetSecretValue(&secret)
 			if err == nil {
 				valueEntry.SetText(plain)
 				currentPlainValue = plain
@@ -88,7 +88,7 @@ func SecretDetail(secret domain.Secret, secretsService *service.SecretsService, 
 			newValue := valueEntry.Text
 			if newValue != "" {
 				// Update the secret using EditSecret method
-				err := secretsService.EditSecret(secret.SecretName, newValue)
+				err := secretsService.UpdateSecret(secret.SecretName, newValue)
 				if err == nil {
 					// Exit edit mode
 					editMode = false

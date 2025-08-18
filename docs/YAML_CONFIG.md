@@ -79,20 +79,20 @@ export GO_PASSWORD_MANAGER_ENV=test
 
 You can override any configuration value using environment variables:
 
-| Environment Variable | YAML Path | Example |
-|---------------------|-----------|---------|
-| `APP_NAME` | `application.name` | `GoPasswordManager` |
-| `APP_VERSION` | `application.version` | `1.0.0` |
-| `DEFAULT_WINDOW_WIDTH` | `ui.window.width` | `1600` |
-| `DEFAULT_WINDOW_HEIGHT` | `ui.window.height` | `900` |
-| `DEBUG_LOGGING` | `logging.debug` | `true` |
-| `LOG_LEVEL` | `logging.level` | `debug` |
-| `ENCRYPTION_KEY_SIZE` | `security.encryption.key_size` | `32` |
-| `SECRETS_FILE_PATH` | `storage.secrets_file` | `secrets.json` |
-| `CONFIG_FILE_PATH` | `storage.config_file` | `app.config` |
-| `HOT_RELOAD` | `development.hot_reload` | `true` |
-| `TEST_DATA_DIR` | `testing.data_dir` | `/tmp/test` |
-| `E2E_TEST_TIMEOUT` | `testing.timeout` | `30s` |
+| Environment Variable    | YAML Path                      | Example             |
+| ----------------------- | ------------------------------ | ------------------- |
+| `APP_NAME`              | `application.name`             | `GoPasswordManager` |
+| `APP_VERSION`           | `application.version`          | `1.0.0`             |
+| `DEFAULT_WINDOW_WIDTH`  | `ui.window.width`              | `1600`              |
+| `DEFAULT_WINDOW_HEIGHT` | `ui.window.height`             | `900`               |
+| `DEBUG_LOGGING`         | `logging.debug`                | `true`              |
+| `LOG_LEVEL`             | `logging.level`                | `debug`             |
+| `ENCRYPTION_KEY_SIZE`   | `security.encryption.key_size` | `32`                |
+| `SECRETS_FILE_PATH`     | `storage.secrets_file`         | `secrets.json`      |
+| `CONFIG_FILE_PATH`      | `storage.config_file`          | `app.config`        |
+| `HOT_RELOAD`            | `development.hot_reload`       | `true`              |
+| `TEST_DATA_DIR`         | `testing.data_dir`             | `/tmp/test`         |
+| `E2E_TEST_TIMEOUT`      | `testing.timeout`              | `30s`               |
 
 ## Usage in Code
 

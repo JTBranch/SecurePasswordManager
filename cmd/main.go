@@ -6,9 +6,12 @@ import (
 	"log"
 	"os"
 
-	"go-password-manager/internal/env"
-	"go-password-manager/internal/envconfig"
+	"go-password-manager/internal/config/buildconfig"
+	config "go-password-manager/internal/config/runtimeconfig"
+	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/logger"
+	"go-password-manager/internal/service"
+	"go-password-manager/internal/storage"
 	"go-password-manager/ui"
 )
 
@@ -23,41 +26,40 @@ func main() {
 	var showVersion = flag.Bool("version", false, "Show version information")
 	flag.Parse()
 
+	buildCfg, err := buildconfig.Load()
+	if err != nil {
+		log.Fatalf("Failed to load build config: %v", err)
+	}
+
 	if *showVersion {
-		fmt.Printf("Go Password Manager %s\n", env.GetVersion())
+		fmt.Printf("Go Password Manager %s\n", buildCfg.Application.Version)
 		fmt.Printf("Commit: %s\n", commit)
 		fmt.Printf("Built: %s\n", date)
 		os.Exit(0)
 	}
 
-	// Load environment configuration (both old and new systems)
-	config, err := env.Load()
+	logger.Init(buildCfg.Logging.Debug)
+
+	// Setup services
+	configService, err := config.NewConfigService(buildCfg)
 	if err != nil {
-		log.Fatalf("Failed to load environment configuration: %v", err)
+		log.Fatalf("Failed to create config service: %v", err)
 	}
 
-	// Load YAML-based environment configuration
-	yamlConfig, err := envconfig.Load()
+	cryptoService, err := crypto.NewCryptoService(configService)
 	if err != nil {
-		// If YAML config fails to load, log warning but continue
-		log.Printf("Warning: Failed to load YAML configuration: %v", err)
+		log.Fatalf("Failed to create crypto service: %v", err)
 	}
 
-	// Initialize logger - use YAML config if available, otherwise fall back to env detection
-	if yamlConfig != nil {
-		logger.Init(yamlConfig.Logging.Debug)
-	} else {
-		logger.Init(env.IsDevMode())
+	secretsPath, err := buildCfg.GetSecretsFilePath()
+	if err != nil {
+		log.Fatalf("Failed to get secrets file path: %v", err)
 	}
+	storageService := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "e2e-user")
 
-	// Set version in config if available
-	if envVersion := env.GetVersion(); envVersion != "" {
-		config.AppVersion = envVersion
-	} else if version != "dev" {
-		config.AppVersion = version
-	}
+	secretsService := service.NewSecretsService(cryptoService, storageService)
 
-	// Pass config to the UI
-	app := ui.NewApp(config)
+	// Pass services to the UI
+	app := ui.NewApp(buildCfg, secretsService)
 	app.Run()
 }

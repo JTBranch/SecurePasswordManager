@@ -1,4 +1,4 @@
-package envconfig
+package buildconfig
 
 import (
 	"os"
@@ -6,14 +6,9 @@ import (
 )
 
 func TestLoadDefaultConfig(t *testing.T) {
-	// Change to project root for test
-	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
-
-	// Change to project root (go up two levels from internal/envconfig)
-	if err := os.Chdir("../../"); err != nil {
-		t.Skipf("Could not change to project root: %v", err)
-	}
+	// Set the environment to a known value that will use the default config
+	os.Setenv("GO_PASSWORD_MANAGER_ENV", "test-default")
+	defer os.Unsetenv("GO_PASSWORD_MANAGER_ENV")
 
 	config, err := Load()
 	if err != nil {

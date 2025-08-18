@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"go-password-manager/internal/envconfig"
+	"go-password-manager/internal/config/buildconfig"
 	"strings"
 
 	"go.uber.org/zap"
@@ -14,9 +14,9 @@ var debugEnabled bool
 // init ensures logger has a default state even if Init() is not called
 func init() {
 	// Load environment config and use its debug setting
-	envConfig := envconfig.Get()
-	if envConfig != nil {
-		Init(envConfig.Logging.Debug)
+	buildConfig := buildconfig.Get()
+	if buildConfig != nil {
+		Init(buildConfig.Logging.Debug)
 	} else {
 		// Fallback to production logger (no debug logs) for safety
 		Init(false)
