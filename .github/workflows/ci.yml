@@ -52,7 +52,7 @@ jobs:
       - name: Run unit tests
         run: |
           echo "🔬 Running unit tests..."
-          make test-unit
+          source .env.test && make test-unit
 
       - name: Run integration tests
         run: |
