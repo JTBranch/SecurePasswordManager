@@ -2,15 +2,16 @@ package setup
 
 import (
 	"fmt"
-	"go-password-manager/internal/config/buildconfig"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/internal/crypto"
-	"go-password-manager/internal/service"
 	"go-password-manager/internal/storage"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"go-password-manager/internal/config/buildconfig"
+	"go-password-manager/internal/service"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"

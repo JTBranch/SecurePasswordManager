@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"go-password-manager/internal/config/buildconfig"
-	config "go-password-manager/internal/config/runtimeconfig"
 	"os"
 	"path/filepath"
 )
@@ -46,7 +45,7 @@ func keyFilePath(keyUUID string) (string, error) {
 }
 
 // LoadOrCreateKey loads an existing encryption key or creates a new one
-func LoadOrCreateKey(cfgService *config.ConfigService) ([]byte, error) {
+func LoadOrCreateKey(configProvider ConfigProvider) ([]byte, error) {
 	buildCfg, err := buildconfig.Load()
 	if err != nil {
 		return nil, err
@@ -56,8 +55,8 @@ func LoadOrCreateKey(cfgService *config.ConfigService) ([]byte, error) {
 	keyUUID := "default-key"
 
 	// Try to get the actual key UUID from config service
-	if cfgService != nil && cfgService.Config.KeyUUID != "" {
-		keyUUID = cfgService.Config.KeyUUID
+	if configProvider != nil && configProvider.GetKeyUUID() != "" {
+		keyUUID = configProvider.GetKeyUUID()
 	}
 
 	path, err := keyFilePath(keyUUID)

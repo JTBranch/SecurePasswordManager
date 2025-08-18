@@ -1,15 +1,17 @@
 package crypto
 
-import config "go-password-manager/internal/config/runtimeconfig"
-
 // CryptoService handles encryption and decryption operations.
 type CryptoService struct {
 	key []byte
 }
 
+type ConfigProvider interface {
+	GetKeyUUID() string
+}
+
 // NewCryptoService creates a new CryptoService.
-func NewCryptoService(configService *config.ConfigService) (*CryptoService, error) {
-	key, err := LoadOrCreateKey(configService)
+func NewCryptoService(configProvider ConfigProvider) (*CryptoService, error) {
+	key, err := LoadOrCreateKey(configProvider)
 	if err != nil {
 		return nil, err
 	}

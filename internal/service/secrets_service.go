@@ -8,14 +8,27 @@ import (
 	"time"
 )
 
+// CryptoProvider defines the contract for cryptographic operations that the SecretsService needs.
+type CryptoProvider interface {
+	Encrypt(data, key []byte) ([]byte, error)
+	Decrypt(data, key []byte) ([]byte, error)
+	GetKey() []byte
+}
+
+// StorageProvider defines the contract for storing and retrieving secrets.
+type StorageProvider interface {
+	ReadSecrets() (domain.SecretsFile, error)
+	WriteSecrets(secrets domain.SecretsFile) error
+}
+
 // SecretsService manages secret operations with encryption
 type SecretsService struct {
-	crypto  CryptoService
-	storage StorageService
+	crypto  CryptoProvider
+	storage StorageProvider
 }
 
 // NewSecretsService creates a new secrets service
-func NewSecretsService(crypto CryptoService, storage StorageService) *SecretsService {
+func NewSecretsService(crypto CryptoProvider, storage StorageProvider) *SecretsService {
 	return &SecretsService{
 		crypto:  crypto,
 		storage: storage,

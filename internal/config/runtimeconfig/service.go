@@ -66,3 +66,8 @@ func (cs *ConfigService) SetWindowSize(width, height int) error {
 func (cs *ConfigService) GetWindowSize() (int, int) {
 	return cs.Config.WindowWidth, cs.Config.WindowHeight
 }
+
+// GetKeyUUID returns the key UUID from the configuration
+func (cs *ConfigService) GetKeyUUID() string {
+	return cs.Config.KeyUUID
+}
