@@ -1,12 +1,6 @@
 name: Release Build
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types:
-      - completed
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       version_bump:
@@ -19,19 +13,16 @@ on:
           - minor
           - major
           - prerelease
-  workflow_call: # Allow this workflow to be called by other workflows
-    inputs:
-      version_bump:
-        description: "Version bump type"
-        required: true
-        default: "patch"
-        type: string
 
 jobs:
+  test:
+    name: Run Test Suite
+    uses: ./.github/workflows/ci.yml
+
   version:
     name: Determine Version and Tag
+    needs: test
     runs-on: ubuntu-latest
-    if: always() && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call')
     outputs:
       version: ${{ steps.tag_version.outputs.new_tag }}
       changelog: ${{ steps.tag_version.outputs.changelog }}
@@ -42,32 +33,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Debug runner information
-        run: |
-          echo "Runner OS: $RUNNER_OS"
-          echo "Runner architecture: $RUNNER_ARCH"
-          echo "GitHub event: ${{ github.event_name }}"
-
       - name: Determine version bump
         id: version-bump
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "workflow_call" ]; then
-            VERSION_BUMP="${{ inputs.version_bump }}"
-          else
-            LATEST_COMMIT=$(git log -1 --pretty=format:"%s %b")
-            echo "Latest commit: $LATEST_COMMIT"
-            
-            if echo "$LATEST_COMMIT" | grep -q "BREAKING CHANGE\|feat!:"; then
-              VERSION_BUMP="major"
-            elif echo "$LATEST_COMMIT" | grep -q "^feat:"; then
-              VERSION_BUMP="minor"
-            elif echo "$LATEST_COMMIT" | grep -q "^fix:"; then
-              VERSION_BUMP="patch"
-            else
-              VERSION_BUMP="patch"
-            fi
-          fi
-
+          VERSION_BUMP="${{ inputs.version_bump }}"
           echo "version-bump=$VERSION_BUMP" >> $GITHUB_OUTPUT
           echo "Detected version bump: $VERSION_BUMP"
 
@@ -98,100 +67,66 @@ jobs:
             name: macos
             display_name: macOS
             script: build-macos.sh
-    runs-on: ${{ matrix.os }}
-    permissions:
-      contents: write
-      packages: write
 
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Need full history for version detection
 
-      - name: Set up Go
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.21"
 
       - name: Install dependencies
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
-            # Wait for any existing apt processes to finish
-            while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-              echo "Waiting for apt lock to be released..."
-              sleep 5
-            done
+          sudo apt-get update
+          sudo apt-get install -y gcc libc6-dev libgl1-mesa-dev xorg-dev
 
-            sudo apt-get update
-            sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
-            
-            # Install fyne-cross for Linux and Windows builds
-            if [ "${{ matrix.name }}" == "linux" ] || [ "${{ matrix.name }}" == "windows" ]; then
-              go install github.com/fyne-io/fyne-cross@latest
-            fi
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            # macOS already has required dependencies for native builds
-            echo "macOS runner ready for native builds"
-          fi
-
-      - name: Build binaries via script
+      - name: Build application
         run: |
-          COMMIT=$(git rev-parse --short HEAD)
-          DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          VERSION=${{ needs.version.outputs.version }}
-
           chmod +x ./scripts/${{ matrix.script }}
-          ./scripts/${{ matrix.script }} "$VERSION" "$COMMIT" "$DATE"
+          ./scripts/${{ matrix.script }} ${{ needs.version.outputs.version }} $(git rev-parse --short HEAD) $(date +%F)
 
-      - name: Upload build artifacts
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binaries-${{ matrix.name }}
-          path: dist/
+          name: ${{ matrix.name }}-build
+          path: dist/${{ matrix.name }}/*
 
-  release:
-    name: Create Release
+  create-release:
+    name: Create GitHub Release
     needs: [version, build]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts/
+          path: dist/
 
-      - name: Prepare release files
-        run: |
-          mkdir -p release-files
-          # Copy Linux binary
-          cp artifacts/binaries-linux/password-manager-linux-amd64 release-files/
-          # Copy Windows binary  
-          cp artifacts/binaries-windows/password-manager-windows-amd64.exe release-files/
-          # Copy macOS binaries
-          cp artifacts/binaries-macos/macos-arm64/go-password-manager release-files/go-password-manager-macos-arm64
-          cp artifacts/binaries-macos/macos-amd64/go-password-manager release-files/go-password-manager-macos-amd64
-
-          ls -la release-files/
-
-      - name: Release
-        uses: softprops/action-gh-release@v2
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ needs.version.outputs.version }}
-          name: Release ${{ needs.version.outputs.version }}
+          release_name: Release ${{ needs.version.outputs.version }}
           body: ${{ needs.version.outputs.changelog }}
-          files: |
-            release-files/password-manager-linux-amd64
-            release-files/password-manager-windows-amd64.exe
-            release-files/go-password-manager-macos-arm64
-            release-files/go-password-manager-macos-amd64
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Assets
+        run: |
+          for dir in dist/*/; do
+            if [ -d "$dir" ]; then
+              for file in "$dir"/*; do
+                if [ -f "$file" ]; then
+                  gh release upload ${{ needs.version.outputs.version }} "$file" --clobber
+                fi
+              done
+            fi
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

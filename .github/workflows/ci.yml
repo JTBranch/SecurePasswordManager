@@ -24,6 +24,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc libc6-dev libgl1-mesa-dev xorg-dev
 
+      - name: Create .env.test file
+        run: |
+          echo "GO_PASSWORD_MANAGER_ENV=test" > .env.test
+          echo "APP_VERSION=1.0.0" >> .env.test
+          echo "APP_NAME=GoPasswordManager-Test" >> .env.test
+          echo "DEFAULT_WINDOW_WIDTH=800" >> .env.test
+          echo "DEFAULT_WINDOW_HEIGHT=600" >> .env.test
+          echo "DEBUG_LOGGING=false" >> .env.test
+          echo "TEST_DATA_DIR=/tmp/go-password-manager-test" >> .env.test
+          echo "E2E_TEST_TIMEOUT=30s" >> .env.test
+          echo "ENCRYPTION_KEY_SIZE=32" >> .env.test
+
       - name: Format check
         run: |
           make fmt
