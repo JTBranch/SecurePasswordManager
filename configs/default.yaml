@@ -1,0 +1,34 @@
+# Default configuration - base values for all environments
+application:
+  name: "GoPasswordManager"
+  version: "1.0.0"
+  environment: "dev"
+
+ui:
+  window:
+    width: 1600
+    height: 900
+  theme: "default"
+
+logging:
+  debug: true
+  level: "info"
+  format: "json"
+
+security:
+  encryption:
+    key_size: 32
+    algorithm: "AES-256-GCM"
+
+storage:
+  secrets_file: "secrets.json"
+  config_file: "app.config"
+
+development:
+  hot_reload: false
+  auto_save: true
+
+testing:
+  timeout: "30s"
+  data_dir: ""
+  parallel: true

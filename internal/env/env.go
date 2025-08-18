@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -195,13 +196,37 @@ func isDevMode() bool {
 		}
 	}
 
+	// Check if we're running tests (Go sets these during test execution)
+	if isTestEnvironment() {
+		return true
+	}
+
 	// Check version-based detection
 	return isDevVersion() && !isProductionContext()
 }
 
+// isTestEnvironment checks if we're running in a test context
+func isTestEnvironment() bool {
+	// Check for test binary indicators
+	if args := os.Args; len(args) > 0 {
+		arg0 := filepath.Base(args[0])
+		// Test binaries often have .test suffix or contain "test" in the name
+		if strings.Contains(arg0, ".test") || strings.HasSuffix(arg0, ".test") {
+			return true
+		}
+	}
+
+	// Check for test-specific environment variables
+	if os.Getenv("GO_TEST") != "" {
+		return true
+	}
+
+	return false
+}
+
 // isDevVersion checks if the version indicates development
 func isDevVersion() bool {
-	return version == "development" || version == "dev"
+	return version == "development" || version == "dev" || version == ""
 }
 
 // isProductionContext checks if we're running in a production context

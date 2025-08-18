@@ -17,13 +17,19 @@ test:
 test-all:
 	@echo "🧪 Running comprehensive test suite..."
 	@mkdir -p tmp/output
-	go test -v -race -coverprofile=tmp/output/coverage.out -covermode=atomic ./...
+	go test -v -race -coverprofile=tmp/output/coverage.out -covermode=atomic -coverpkg=./cmd/...,./internal/...,./ui/... ./...
+
+test-coverage:
+	@echo "📊 Running tests and showing coverage percentage..."
+	@mkdir -p tmp/output
+	@go test -race -coverprofile=tmp/output/coverage.out -covermode=atomic -coverpkg=./cmd/...,./internal/...,./ui/... ./... > /dev/null 2>&1
+	@go tool cover -func=tmp/output/coverage.out | grep total | awk '{print "Total Coverage: " $$3}'
 
 test-reports:
 	@echo "📊 Generating comprehensive test reports..."
 	@mkdir -p tmp/output
 	@echo "Running tests with JSON output..."
-	go test -v -json -race -coverprofile=tmp/output/coverage.out -covermode=atomic ./... | tee tmp/output/test-results.json
+	go test -v -json -race -coverprofile=tmp/output/coverage.out -covermode=atomic -coverpkg=./cmd/...,./internal/...,./ui/... ./... | tee tmp/output/test-results.json
 	@echo "Generating HTML coverage report..."
 	go tool cover -html=tmp/output/coverage.out -o tmp/output/coverage.html
 	@echo "Generating coverage summary..."
@@ -33,12 +39,12 @@ test-reports:
 test-unit:
 	@echo "🔬 Running unit tests..."
 	@mkdir -p tmp/output
-	go test -v -race -coverprofile=tmp/output/unit-coverage.out -covermode=atomic ./internal/...
+	go test -v -race -coverprofile=tmp/output/unit-coverage.out -covermode=atomic -coverpkg=./internal/... ./internal/...
 
 test-integration:
 	@echo "🔗 Running integration tests..."
 	@mkdir -p tmp/output
-	go test -v -race -coverprofile=tmp/output/integration-coverage.out -covermode=atomic ./tests/integration/...
+	go test -v -race -coverprofile=tmp/output/integration-coverage.out -covermode=atomic -coverpkg=./internal/...,./ui/... ./tests/integration/...
 
 test-e2e:
 	@echo "🎭 Running E2E tests..."

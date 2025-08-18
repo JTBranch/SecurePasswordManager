@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"go-password-manager/internal/envconfig"
 	"strings"
 
 	"go.uber.org/zap"
@@ -9,6 +10,18 @@ import (
 
 var log *zap.Logger
 var debugEnabled bool
+
+// init ensures logger has a default state even if Init() is not called
+func init() {
+	// Load environment config and use its debug setting
+	envConfig := envconfig.Get()
+	if envConfig != nil {
+		Init(envConfig.Logging.Debug)
+	} else {
+		// Fallback to production logger (no debug logs) for safety
+		Init(false)
+	}
+}
 
 // Init initializes the logger with the specified debug mode
 func Init(debug bool) {
@@ -31,22 +44,28 @@ func Init(debug bool) {
 
 // Debug logs debug messages only if debug is enabled
 func Debug(msgs ...string) {
-	if debugEnabled {
+	if debugEnabled && log != nil {
 		log.WithOptions(zap.AddCallerSkip(1)).Debug(strings.Join(msgs, " | "))
 	}
 }
 
 // Info logs info messages
 func Info(msgs ...string) {
-	log.WithOptions(zap.AddCallerSkip(1)).Info(strings.Join(msgs, " | "))
+	if log != nil {
+		log.WithOptions(zap.AddCallerSkip(1)).Info(strings.Join(msgs, " | "))
+	}
 }
 
 // Warn logs warning messages
 func Warn(msgs ...string) {
-	log.WithOptions(zap.AddCallerSkip(1)).Warn(strings.Join(msgs, " | "))
+	if log != nil {
+		log.WithOptions(zap.AddCallerSkip(1)).Warn(strings.Join(msgs, " | "))
+	}
 }
 
 // Error logs error messages
 func Error(msgs ...string) {
-	log.WithOptions(zap.AddCallerSkip(1)).Error(strings.Join(msgs, " | "))
+	if log != nil {
+		log.WithOptions(zap.AddCallerSkip(1)).Error(strings.Join(msgs, " | "))
+	}
 }

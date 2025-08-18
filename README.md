@@ -383,6 +383,60 @@ The application supports different environments and logging modes:
 - Clean output (no debug logs)
 - Secure file permissions
 
+### YAML Configuration
+
+The application now supports structured configuration using YAML files for better organization and environment management. This system works alongside the existing environment variables for backward compatibility.
+
+#### **Configuration Files**
+
+Configuration files are located in the `configs/` directory:
+
+```
+configs/
+├── default.yaml      # Base configuration (all environments)
+├── development.yaml  # Development overrides  
+├── production.yaml   # Production overrides
+└── test.yaml        # Test environment overrides
+```
+
+#### **Environment Selection**
+
+Set the environment using the `GO_PASSWORD_MANAGER_ENV` variable:
+
+```bash
+export GO_PASSWORD_MANAGER_ENV=production  # Use production config
+export GO_PASSWORD_MANAGER_ENV=development # Use development config (default)
+export GO_PASSWORD_MANAGER_ENV=test       # Use test config
+```
+
+#### **Configuration Priority**
+
+Configuration is loaded in this order (later values override earlier ones):
+
+1. **YAML Default**: `configs/default.yaml`
+2. **YAML Environment**: `configs/{environment}.yaml` 
+3. **Environment Variables**: Traditional env vars (highest priority)
+
+#### **Example Configuration**
+
+```yaml
+# configs/production.yaml
+application:
+  environment: "production"
+  
+logging:
+  debug: false
+  level: "info"
+  format: "json"
+  
+ui:
+  window:
+    width: 1400
+    height: 800
+```
+
+For detailed configuration options and migration guide, see [YAML_CONFIG.md](docs/YAML_CONFIG.md).
+
 ### Data Structure
 
 Secrets are stored with full version history in a nested JSON structure:

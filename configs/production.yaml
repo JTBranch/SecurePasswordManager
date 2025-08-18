@@ -1,0 +1,17 @@
+# Production environment configuration
+application:
+  environment: "production"
+
+logging:
+  debug: false
+  level: "info"
+  format: "json"
+
+development:
+  hot_reload: false
+  auto_save: false
+
+security:
+  # Production might use different encryption settings
+  encryption:
+    key_size: 32

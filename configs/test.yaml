@@ -1,0 +1,17 @@
+# Test environment configuration
+application:
+  environment: "test"
+
+logging:
+  debug: true
+  level: "debug"
+  format: "console"
+
+testing:
+  timeout: "10s"
+  parallel: true
+  cleanup: true
+
+development:
+  hot_reload: false
+  auto_save: false

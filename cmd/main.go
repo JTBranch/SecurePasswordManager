@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"go-password-manager/internal/env"
+	"go-password-manager/internal/envconfig"
 	"go-password-manager/internal/logger"
 	"go-password-manager/ui"
 )
@@ -29,14 +30,25 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Load environment configuration
+	// Load environment configuration (both old and new systems)
 	config, err := env.Load()
 	if err != nil {
 		log.Fatalf("Failed to load environment configuration: %v", err)
 	}
 
-	// Initialize logger with debug setting based on dev mode detection
-	logger.Init(env.IsDevMode())
+	// Load YAML-based environment configuration
+	yamlConfig, err := envconfig.Load()
+	if err != nil {
+		// If YAML config fails to load, log warning but continue
+		log.Printf("Warning: Failed to load YAML configuration: %v", err)
+	}
+
+	// Initialize logger - use YAML config if available, otherwise fall back to env detection
+	if yamlConfig != nil {
+		logger.Init(yamlConfig.Logging.Debug)
+	} else {
+		logger.Init(env.IsDevMode())
+	}
 
 	// Set version in config if available
 	if envVersion := env.GetVersion(); envVersion != "" {

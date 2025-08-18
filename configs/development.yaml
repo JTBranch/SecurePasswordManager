@@ -1,0 +1,17 @@
+# Development environment configuration
+application:
+  environment: "development"
+
+logging:
+  debug: true
+  level: "debug"
+  format: "console"
+
+development:
+  hot_reload: true
+  auto_save: true
+
+storage:
+  # Use current directory for dev
+  secrets_file: "secrets.json"
+  config_file: "app.config"
