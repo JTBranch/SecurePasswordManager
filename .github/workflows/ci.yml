@@ -25,17 +25,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc libc6-dev libgl1-mesa-dev xorg-dev
 
-      - name: Create .env.test file
+      - name: Set environment variables for tests
         run: |
-          echo "GO_PASSWORD_MANAGER_ENV=test" > .env.test
-          echo "APP_VERSION=1.0.0" >> .env.test
-          echo "APP_NAME=GoPasswordManager-Test" >> .env.test
-          echo "DEFAULT_WINDOW_WIDTH=800" >> .env.test
-          echo "DEFAULT_WINDOW_HEIGHT=600" >> .env.test
-          echo "DEBUG_LOGGING=false" >> .env.test
-          echo "TEST_DATA_DIR=/tmp/go-password-manager-test" >> .env.test
-          echo "E2E_TEST_TIMEOUT=30s" >> .env.test
-          echo "ENCRYPTION_KEY_SIZE=32" >> .env.test
+          echo "GO_PASSWORD_MANAGER_ENV=test" >> $GITHUB_ENV
+          echo "APP_VERSION=1.0.0" >> $GITHUB_ENV
+          echo "APP_NAME=GoPasswordManager-Test" >> $GITHUB_ENV
+          echo "DEFAULT_WINDOW_WIDTH=800" >> $GITHUB_ENV
+          echo "DEFAULT_WINDOW_HEIGHT=600" >> $GITHUB_ENV
+          echo "DEBUG_LOGGING=false" >> $GITHUB_ENV
+          echo "TEST_DATA_DIR=/tmp/go-password-manager-test" >> $GITHUB_ENV
+          echo "E2E_TEST_TIMEOUT=30s" >> $GITHUB_ENV
+          echo "ENCRYPTION_KEY_SIZE=32" >> $GITHUB_ENV
 
       - name: Format check
         run: |
@@ -52,7 +52,7 @@ jobs:
       - name: Run unit tests
         run: |
           echo "🔬 Running unit tests..."
-          source .env.test && make test-unit
+          make test-unit
 
       - name: Run integration tests
         run: |
