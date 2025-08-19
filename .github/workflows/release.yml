@@ -2,6 +2,17 @@ name: Release Build
 
 on:
   workflow_call:
+    inputs:
+      version_bump:
+        description: "Version bump type"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
   workflow_dispatch:
     inputs:
       version_bump:
