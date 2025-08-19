@@ -322,3 +322,11 @@ func (c *Config) GetWindowSize() (int, int) {
 func (c *Config) GetAppVersion() string {
 	return c.Application.Version
 }
+
+func (c *Config) IsDebug() bool {
+	return c.Logging.Debug
+}
+
+func (c *Config) GetLogLevel() string {
+	return c.Logging.Level
+}

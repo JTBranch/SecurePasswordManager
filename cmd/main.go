@@ -38,7 +38,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	logger.Init(buildCfg.Logging.Debug)
+	logger.Init(buildCfg)
 
 	// Setup services
 	configService, err := config.NewConfigService(buildCfg)

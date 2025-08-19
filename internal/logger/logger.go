@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"go-password-manager/internal/config/buildconfig"
 	"strings"
 
 	"go.uber.org/zap"
@@ -11,24 +10,17 @@ import (
 var log *zap.Logger
 var debugEnabled bool
 
-// init ensures logger has a default state even if Init() is not called
-func init() {
-	// Load environment config and use its debug setting
-	buildConfig := buildconfig.Get()
-	if buildConfig != nil {
-		Init(buildConfig.Logging.Debug)
-	} else {
-		// Fallback to production logger (no debug logs) for safety
-		Init(false)
-	}
+type LoggerConfig interface {
+	IsDebug() bool
+	GetLogLevel() string
 }
 
 // Init initializes the logger with the specified debug mode
-func Init(debug bool) {
-	debugEnabled = debug
+func Init(cfg LoggerConfig) {
+	debugEnabled = cfg.IsDebug()
 
 	config := zap.NewProductionConfig()
-	if debug {
+	if debugEnabled {
 		config = zap.NewDevelopmentConfig()
 		config.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
 	} else {

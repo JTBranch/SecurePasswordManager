@@ -31,7 +31,6 @@ func (fs *FileStorage) ReadSecrets() (domain.SecretsFile, error) {
 		}, nil
 	}
 
-	println("READING SECRETS from ", fs.filePath)
 	file, err := os.Open(fs.filePath)
 	if err != nil {
 		return domain.SecretsFile{}, err
