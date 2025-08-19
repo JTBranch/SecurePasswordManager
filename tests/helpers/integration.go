@@ -43,8 +43,6 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 	suite.originalEnv = os.Getenv("GO_PASSWORD_MANAGER_ENV")
 	os.Setenv("GO_PASSWORD_MANAGER_ENV", "integration-test")
 	os.Setenv("TEST_DATA_DIR", suite.testDataDir)
-	os.Setenv("DEBUG_LOGGING", "true")
-	// os.Setenv("SECRETS_FILE", suite.GetSecretsFilePath())
 
 	// Load test configuration
 	var err error

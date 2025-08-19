@@ -15,3 +15,7 @@ testing:
 development:
   hot_reload: false
   auto_save: false
+
+storage:
+  secrets_file: "secrets.json"
+  config_file: "app.config"
