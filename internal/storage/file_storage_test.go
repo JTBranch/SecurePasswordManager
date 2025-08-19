@@ -5,7 +5,7 @@ import (
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/storage"
 	"go-password-manager/tests/helpers"
-	"os"
+	os "os"
 	"testing"
 )
 

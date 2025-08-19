@@ -4,7 +4,7 @@ import (
 	"log"
 	"path/filepath"
 
-	"go-password-manager/pkg/reporting"
+	"go-password-manager/tests/reporting"
 )
 
 func main() {

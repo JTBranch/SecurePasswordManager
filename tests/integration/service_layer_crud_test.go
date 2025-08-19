@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"go-password-manager/pkg/reporting"
 	"go-password-manager/tests/helpers"
+	"go-password-manager/tests/reporting"
 	"go-password-manager/tests/testdata"
 
 	"github.com/stretchr/testify/assert"

@@ -3,8 +3,8 @@ package integration
 import (
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/service"
-	"go-password-manager/pkg/reporting"
 	"go-password-manager/tests/helpers"
+	"go-password-manager/tests/reporting"
 	"go-password-manager/tests/testdata"
 	"testing"
 
