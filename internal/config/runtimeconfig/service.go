@@ -2,10 +2,19 @@ package config
 
 import (
 	"encoding/json"
-	"go-password-manager/internal/config/buildconfig"
+	"fmt"
 	"os"
-	"path/filepath"
+
+	"github.com/google/uuid"
 )
+
+// AppConfig represents the application configuration that is persisted on disk.
+type AppConfig struct {
+	KeyUUID      string `json:"keyUUID"`
+	AppVersion   string `json:"appVersion"`
+	WindowWidth  int    `json:"windowWidth"`
+	WindowHeight int    `json:"windowHeight"`
+}
 
 // ConfigService manages application configuration
 type ConfigService struct {
@@ -13,37 +22,60 @@ type ConfigService struct {
 	path   string
 }
 
-// NewConfigService creates a new configuration service
-func NewConfigService(buildCfg *buildconfig.Config) (*ConfigService, error) {
-	path, err := buildCfg.GetConfigFilePath()
+// BuildConfigProvider defines an interface for accessing necessary build-time configuration.
+// This allows for decoupling the runtime config service from the concrete build config implementation.
+type BuildConfigProvider interface {
+	GetConfigFilePath() (string, error)
+	GetAppVersion() string
+	GetWindowSize() (int, int)
+}
+
+// NewConfigService creates a new ConfigService.
+// It loads an existing configuration from disk if one is found, otherwise it creates a new default config.
+func NewConfigService(buildCfg BuildConfigProvider) (*ConfigService, error) {
+	configPath, err := buildCfg.GetConfigFilePath()
+	if err != nil {
+		return nil, fmt.Errorf("could not determine config file path: %w", err)
+	}
+
+	// Try to load existing config
+	loadedConfig, err := loadConfigFromFile(configPath)
+	if err != nil {
+		// If file doesn't exist or is corrupt, create a new default config
+		initialWidth, initialHeight := buildCfg.GetWindowSize()
+		newConfig := &AppConfig{
+			AppVersion:   buildCfg.GetAppVersion(),
+			WindowWidth:  initialWidth,
+			WindowHeight: initialHeight,
+		}
+
+		// Generate a new KeyUUID
+		newUUID, uuidErr := uuid.NewRandom()
+		if uuidErr != nil {
+			return nil, fmt.Errorf("failed to generate KeyUUID: %w", uuidErr)
+		}
+		newConfig.KeyUUID = newUUID.String()
+
+		loadedConfig = newConfig
+	}
+
+	s := &ConfigService{
+		Config: loadedConfig,
+		path:   configPath,
+	}
+
+	return s, nil
+}
+
+// loadConfigFromFile loads the configuration from the specified file
+func loadConfigFromFile(path string) (*AppConfig, error) {
+	var cfg AppConfig
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-
-	var cfg AppConfig
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		cfg = AppConfig{
-			AppVersion:   buildCfg.Application.Version,
-			WindowWidth:  buildCfg.UI.Window.Width,
-			WindowHeight: buildCfg.UI.Window.Height,
-		}
-		data, _ := json.MarshalIndent(cfg, "", "  ")
-
-		// Ensure directory exists
-		dir := filepath.Dir(path)
-		if err := os.MkdirAll(dir, 0700); err != nil {
-			return nil, err
-		}
-
-		_ = os.WriteFile(path, data, 0600)
-	} else {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		_ = json.Unmarshal(data, &cfg)
-	}
-	return &ConfigService{Config: &cfg, path: path}, nil
+	err = json.Unmarshal(data, &cfg)
+	return &cfg, err
 }
 
 // Save saves the configuration to disk

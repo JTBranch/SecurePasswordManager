@@ -37,6 +37,9 @@ jobs:
           echo "E2E_TEST_TIMEOUT=30s" >> $GITHUB_ENV
           echo "ENCRYPTION_KEY_SIZE=32" >> $GITHUB_ENV
 
+      - name: Create test data directory
+        run: mkdir -p $TEST_DATA_DIR
+
       - name: Format check
         run: |
           make fmt

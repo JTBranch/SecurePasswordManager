@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"fmt"
 	"go-password-manager/internal/config/buildconfig"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/internal/crypto"
@@ -42,6 +43,8 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 	suite.originalEnv = os.Getenv("GO_PASSWORD_MANAGER_ENV")
 	os.Setenv("GO_PASSWORD_MANAGER_ENV", "integration-test")
 	os.Setenv("TEST_DATA_DIR", suite.testDataDir)
+	os.Setenv("DEBUG_LOGGING", "true")
+	// os.Setenv("SECRETS_FILE", suite.GetSecretsFilePath())
 
 	// Load test configuration
 	var err error
@@ -62,6 +65,7 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 
 	// Initialize secrets service with test configuration
 	secretsPath, err := suite.BuildConfig.GetSecretsFilePath()
+	fmt.Println("Secrets file path:", secretsPath)
 	if err != nil {
 		suite.Reporter.T().Fatalf("Failed to get secrets file path: %v", err)
 	}

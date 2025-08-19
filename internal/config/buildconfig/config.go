@@ -3,8 +3,7 @@ package buildconfig
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
+	"os" // Changed from io/ioutil
 	"path/filepath"
 	"strconv"
 	"time"
@@ -137,7 +136,7 @@ func Get() *Config {
 
 // loadConfigFile loads a configuration file from the given path
 func loadConfigFile(path string) (*Config, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -317,4 +316,9 @@ func (c *Config) GetTestTimeout() time.Duration {
 // GetWindowSize returns the configured window dimensions
 func (c *Config) GetWindowSize() (int, int) {
 	return c.UI.Window.Width, c.UI.Window.Height
+}
+
+// GetAppVersion returns the application version.
+func (c *Config) GetAppVersion() string {
+	return c.Application.Version
 }

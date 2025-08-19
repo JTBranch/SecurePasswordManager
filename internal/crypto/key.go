@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"go-password-manager/internal/config/buildconfig"
+	"go-password-manager/internal/logger"
 	"os"
 	"path/filepath"
 )
@@ -82,6 +83,7 @@ func LoadOrCreateKey(configProvider ConfigProvider) ([]byte, error) {
 			return nil, err
 		}
 
+		logger.Debug("creating new encryption key: ", string(key))
 		return key, nil
 	}
 

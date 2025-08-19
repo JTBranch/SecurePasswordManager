@@ -8,6 +8,7 @@ secrets.json
 
 # Ignore temporary build and CI output files
 tmp/
+bin/
 
 # Ignore backup files
 *.backup

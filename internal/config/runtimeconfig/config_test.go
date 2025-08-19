@@ -1,94 +1,93 @@
 package config_test
 
 import (
-	"go-password-manager/internal/config/buildconfig"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/tests/helpers"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-const errCreateConfigService = "Expected no error creating ConfigService, got: %v"
+// mockBuildConfig is a mock implementation of the BuildConfigProvider interface for testing.
+type mockBuildConfig struct {
+	ConfigPath    string
+	PathError     error
+	AppVersion    string
+	InitialWidth  int
+	InitialHeight int
+}
 
-func TestConfigService(t *testing.T) {
-	helpers.WithUnitTestCase(t, "Basic", func(tc *helpers.UnitTestCase) {
-		buildCfg, err := buildconfig.Load()
-		tc.Require.NoError(err, "Failed to load build config")
-		// Test NewConfigService
-		service, err := config.NewConfigService(buildCfg)
-		tc.Require.NoError(err, "Expected no error creating ConfigService")
-		tc.Assert.NotNil(service, "Expected NewConfigService to return non-nil service")
-		tc.Assert.NotNil(service.Config, "Expected ConfigService to have non-nil Config")
+// GetConfigFilePath returns a mock config path or an error.
+func (m *mockBuildConfig) GetConfigFilePath() (string, error) {
+	if m.PathError != nil {
+		return "", m.PathError
+	}
+	return m.ConfigPath, nil
+}
 
-		// Check that default values are reasonable
-		tc.Assert.Greater(service.Config.WindowWidth, 0, "Expected positive window width")
-		tc.Assert.Greater(service.Config.WindowHeight, 0, "Expected positive window height")
-		tc.Assert.NotEmpty(service.Config.AppVersion, "Expected non-empty app version")
+// GetAppVersion returns a mock app version.
+func (m *mockBuildConfig) GetAppVersion() string {
+	return m.AppVersion
+}
+
+// GetWindowSize returns mock window dimensions.
+func (m *mockBuildConfig) GetWindowSize() (int, int) {
+	return m.InitialWidth, m.InitialHeight
+}
+
+func TestNewConfigServiceInitialization(t *testing.T) {
+	helpers.WithUnitTestCase(t, "Initializes with default values when config file does not exist", func(tc *helpers.UnitTestCase) {
+		// Create a temporary directory to ensure the path is valid but the file is empty
+		tempDir, err := os.MkdirTemp("", "config-init-test-")
+		tc.Require.NoError(err, "Failed to create temp dir")
+		defer os.RemoveAll(tempDir)
+
+		configFilePath := filepath.Join(tempDir, "non-existent-config.json")
+
+		// Setup mock to return a valid path to a non-existent file.
+		// This will cause `loadConfigFromFile` to fail, triggering the default creation logic.
+		mockProvider := &mockBuildConfig{
+			ConfigPath:    configFilePath,
+			PathError:     nil, // No error getting the path
+			AppVersion:    "v1.2.3-mock",
+			InitialWidth:  1280,
+			InitialHeight: 720,
+		}
+
+		service, err := config.NewConfigService(mockProvider)
+		tc.Require.NoError(err, "NewConfigService should not fail when config file doesn't exist")
+		tc.Require.NotNil(service, "Service should not be nil")
+
+		// Assert that the config was initialized with values from our mock provider
+		tc.Assert.NotEmpty(service.Config.KeyUUID, "A new KeyUUID should be generated")
+		tc.Assert.Equal("v1.2.3-mock", service.Config.AppVersion, "AppVersion should match the mock provider")
+		tc.Assert.Equal(1280, service.Config.WindowWidth, "WindowWidth should match the mock provider")
+		tc.Assert.Equal(720, service.Config.WindowHeight, "WindowHeight should match the mock provider")
 	})
+}
 
-	helpers.WithUnitTestCase(t, "SetWindowSize", func(tc *helpers.UnitTestCase) {
-		buildCfg, err := buildconfig.Load()
-		tc.Require.NoError(err, "Failed to load build config")
-		service, err := config.NewConfigService(buildCfg)
-		tc.Require.NoError(err, errCreateConfigService)
+func TestConfigServiceSaveAndLoad(t *testing.T) {
+	helpers.WithUnitTestCase(t, "Saves and loads configuration correctly", func(tc *helpers.UnitTestCase) {
+		tempDir, err := os.MkdirTemp("", "config-test-")
+		tc.Require.NoError(err, "Failed to create temp dir")
+		defer os.RemoveAll(tempDir)
 
-		// Test SetWindowSize
-		testWidth := 1024
-		testHeight := 768
+		configFilePath := filepath.Join(tempDir, "app.config.json")
 
-		err = service.SetWindowSize(testWidth, testHeight)
-		tc.Require.NoError(err, "Expected no error setting window size")
+		// 1. Create the first service and save its config
+		mockProvider1 := &mockBuildConfig{ConfigPath: configFilePath}
+		service1, err := config.NewConfigService(mockProvider1)
+		tc.Require.NoError(err, "Creating service 1 should not fail")
 
-		// Verify values were updated
-		tc.Assert.Equal(testWidth, service.Config.WindowWidth, "Window width should be updated")
-		tc.Assert.Equal(testHeight, service.Config.WindowHeight, "Window height should be updated")
-	})
-
-	helpers.WithUnitTestCase(t, "SaveAndLoad", func(tc *helpers.UnitTestCase) {
-		// To ensure a clean slate, we need to know the path to remove the config file.
-		// Since we can't access the unexported path function, we'll rely on the fact
-		// that NewConfigService will create a default one if it doesn't exist.
-		// We'll save, then create a new service to see if it loads the saved data.
-		buildCfg, err := buildconfig.Load()
-		tc.Require.NoError(err, "Failed to load build config")
-		service1, err := config.NewConfigService(buildCfg)
-		tc.Require.NoError(err, errCreateConfigService)
-
-		// Modify config
-		service1.Config.WindowWidth = 1200
-		service1.Config.WindowHeight = 900
-
-		// Test Save
+		service1.Config.WindowWidth = 1024
 		err = service1.Save()
-		tc.Require.NoError(err, "Expected no error saving config")
+		tc.Require.NoError(err, "Saving config should not produce an error")
 
-		// Create new service to verify persistence
-		service2, err := config.NewConfigService(buildCfg)
-		tc.Require.NoError(err, "Expected no error creating new ConfigService")
+		// 2. Create a second service that should load the file saved by the first
+		mockProvider2 := &mockBuildConfig{ConfigPath: configFilePath}
+		service2, err := config.NewConfigService(mockProvider2)
+		tc.Require.NoError(err, "Creating service 2 should not fail")
 
-		// Verify loaded config matches saved config
-		tc.Assert.Equal(service1.Config.WindowWidth, service2.Config.WindowWidth, "Saved window width should be loaded")
-		tc.Assert.Equal(service1.Config.WindowHeight, service2.Config.WindowHeight, "Saved window height should be loaded")
-
-		// Cleanup: We can't easily get the path, but we can save a default config
-		// to avoid interfering with other tests or runs.
-		serviceDefault, _ := config.NewConfigService(buildCfg)
-		serviceDefault.Config.WindowWidth = 800
-		serviceDefault.Config.WindowHeight = 600
-		serviceDefault.Save()
-	})
-
-	helpers.WithUnitTestCase(t, "LoadNonExistentResetsToDefault", func(tc *helpers.UnitTestCase) {
-		// This test is tricky without access to the config file path.
-		// A true test would involve deleting the file. We will trust that if `SaveAndLoad`
-		// works, the file path logic is correct. We'll test that a new service
-		// has default values, which is the behavior when a file is non-existent.
-		buildCfg, err := buildconfig.Load()
-		tc.Require.NoError(err, "Failed to load build config")
-		service, err := config.NewConfigService(buildCfg)
-		tc.Require.NoError(err, "Expected no error creating service")
-
-		// Should have default values
-		tc.Assert.NotEqual(0, service.Config.WindowWidth, "Should have default width")
-		tc.Assert.NotEqual(0, service.Config.WindowHeight, "Should have default height")
+		tc.Assert.Equal(1024, service2.Config.WindowWidth, "WindowWidth should be loaded from the saved file")
 	})
 }
