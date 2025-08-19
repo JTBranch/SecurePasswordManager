@@ -6,13 +6,7 @@ on:
       version_bump:
         description: "Version bump type"
         required: true
-        default: "patch"
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
-          - prerelease
+        type string
   workflow_dispatch:
     inputs:
       version_bump:
@@ -44,6 +38,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Validate version bump
+        run: |
+          case "${{ inputs.version_bump }}" in
+            patch|minor|major) ;;
+            *) echo "Invalid version bump"; exit 1 ;;
+          esac
 
       - name: Determine version bump
         id: version-bump
