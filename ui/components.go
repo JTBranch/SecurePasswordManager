@@ -1,7 +1,7 @@
 package ui
 
 import (
-	buildconfig "go-password-manager/internal/config/buildConfig"
+	buildconfig "go-password-manager/internal/config/buildconfig"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/domain"
@@ -113,7 +113,5 @@ func SecretList(secrets []domain.Secret, onSelect func(idx int), onDelete func(n
 // SecretName renders a single secret name with delete icon
 func SecretName(secret domain.Secret, onClick func(), onDelete func()) fyne.CanvasObject {
 	nameBtn := widget.NewButton(secret.SecretName, onClick)
-	deleteBtn := widget.NewButton("Delete", onDelete)
-	deleteBtn.Importance = widget.HighImportance // Makes it red
-	return container.NewHBox(nameBtn, deleteBtn)
+	return container.NewHBox(nameBtn)
 }

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	buildConfig "go-password-manager/internal/config/buildConfig"
+	buildconfig "go-password-manager/internal/config/buildconfig"
 
 	"github.com/google/uuid"
 )
@@ -29,7 +29,7 @@ type ConfigService struct {
 type BuildConfigProvider interface {
 	GetConfigFilePath() (string, error)
 	GetAppVersion() string
-	GetUiConfig() buildConfig.UIConfig
+	GetUiConfig() buildconfig.UIConfig
 }
 
 // NewConfigService creates a new ConfigService.

@@ -1,7 +1,7 @@
 package config_test
 
 import (
-	buildConfig "go-password-manager/internal/config/buildConfig"
+	buildconfig "go-password-manager/internal/config/buildconfig"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/tests/helpers"
 	"os"
@@ -14,7 +14,7 @@ type mockBuildConfig struct {
 	ConfigPath string
 	PathError  error
 	AppVersion string
-	ui         buildConfig.UIConfig
+	ui         buildconfig.UIConfig
 }
 
 // GetConfigFilePath returns a mock config path or an error.
@@ -31,7 +31,7 @@ func (m *mockBuildConfig) GetAppVersion() string {
 }
 
 // GetWindowSize returns mock window dimensions.
-func (m *mockBuildConfig) GetUiConfig() buildConfig.UIConfig {
+func (m *mockBuildConfig) GetUiConfig() buildconfig.UIConfig {
 	return m.ui
 }
 
@@ -50,8 +50,8 @@ func TestNewConfigServiceInitialization(t *testing.T) {
 			ConfigPath: configFilePath,
 			PathError:  nil, // No error getting the path
 			AppVersion: "v1.2.3-mock",
-			ui: buildConfig.UIConfig{
-				Window: buildConfig.WindowConfig{
+			ui: buildconfig.UIConfig{
+				Window: buildconfig.WindowConfig{
 					Width:  1280,
 					Height: 720,
 				},

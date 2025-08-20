@@ -27,6 +27,8 @@ func (t *LightTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) 
 		return color.RGBA{R: 210, G: 220, B: 235, A: 255} // Soft blue-gray for hover
 	case theme.ColorNameDisabledButton:
 		return color.RGBA{R: 200, G: 200, B: 200, A: 255} // Gray
+	case theme.ColorNameOverlayBackground:
+		return color.RGBA{R: 230, G: 232, B: 236, A: 255} // Neutral light gray
 	default:
 		// fallback to a reasonable default
 		return color.White
@@ -63,6 +65,8 @@ func (t *DarkTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) c
 		return color.RGBA{R: 40, G: 100, B: 180, A: 255} // Soft blue for hover
 	case theme.ColorNameDisabledButton:
 		return color.RGBA{R: 60, G: 60, B: 60, A: 255} // Dark disabled
+	case theme.ColorNameOverlayBackground:
+		return color.RGBA{R: 44, G: 48, B: 58, A: 255} // Neutral dark gray
 	default:
 		return color.Black
 	}

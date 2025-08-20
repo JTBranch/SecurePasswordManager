@@ -2,11 +2,11 @@ package ui
 
 import (
 	"fmt"
-	buildConfig "go-password-manager/internal/config/buildConfig"
+	buildconfig "go-password-manager/internal/config/buildconfig"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/internal/logger"
 	"go-password-manager/internal/service"
-	"go-password-manager/ui/pages"
+	pages "go-password-manager/ui/pages"
 	"go-password-manager/ui/themes"
 
 	"fyne.io/fyne/v2"
@@ -18,7 +18,7 @@ type App struct {
 	fyneApp        fyne.App
 	window         fyne.Window
 	configService  *config.ConfigService
-	buildConfig    *buildConfig.Config
+	buildconfig    *buildconfig.Config
 	secretsService *service.SecretsService
 }
 
@@ -28,7 +28,7 @@ const (
 )
 
 // NewApp creates a new application instance
-func NewApp(buildCfg *buildConfig.Config, secretsService *service.SecretsService) *App {
+func NewApp(buildCfg *buildconfig.Config, secretsService *service.SecretsService) *App {
 	fyneApp := app.New()
 	fyneApp.Settings().SetTheme(&themes.LightTheme{})
 	window := fyneApp.NewWindow(buildCfg.Application.Name)
@@ -57,7 +57,7 @@ func NewApp(buildCfg *buildConfig.Config, secretsService *service.SecretsService
 		fyneApp:        fyneApp,
 		window:         window,
 		configService:  configService,
-		buildConfig:    buildCfg,
+		buildconfig:    buildCfg,
 		secretsService: secretsService,
 	}
 }

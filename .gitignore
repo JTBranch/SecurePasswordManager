@@ -10,6 +10,7 @@ secrets.json
 tmp/
 bin/
 
+.DS_Store
 # Ignore backup files
 *.backup
 *.bak
