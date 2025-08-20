@@ -12,6 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const shouldGenerateUniqueSecretMsg = "Should generate unique secret"
+const shouldBeAbleToCreateSecretMsg = "Should be able to create secret"
+
 func TestCreateSecretOnFirstLoad(t *testing.T) {
 	reporting.WithReporting(t, "TestCreateSecretOnFirstLoad", func(reporter *reporting.TestWrapper) {
 		suite := helpers.NewIntegrationTestSuite(reporter)
@@ -19,10 +22,10 @@ func TestCreateSecretOnFirstLoad(t *testing.T) {
 		defer suite.Cleanup()
 
 		testDataManager := testdata.NewTestDataManager()
-		require.NoError(reporter.T(), testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
-
 		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("ServiceLayerCRUD")
-		require.NoError(t, err, "Should generate unique secret")
+		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
+		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
 		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
 
 		secrets, err := suite.SecretsService.LoadAllSecrets()
@@ -30,8 +33,10 @@ func TestCreateSecretOnFirstLoad(t *testing.T) {
 		assert.Equal(t, 0, len(secrets.Secrets), "Should start with no secrets")
 
 		testSecretName := uniqueSecret.UniqueName
-		err = suite.SecretsService.SaveNewSecret(uniqueSecret.UniqueName, uniqueSecret.Value)
-		require.NoError(t, err, "Should be able to create secret")
+		require.NoError(t, err, shouldBeAbleToCreateSecretMsg)
+		require.NoError(t, err, shouldBeAbleToCreateSecretMsg)
+
+		suite.SecretsService.SaveNewSecret(testSecretName, uniqueSecret.Value)
 
 		secrets, err = suite.SecretsService.LoadAllSecrets()
 		require.NoError(t, err)
@@ -48,15 +53,15 @@ func TestExistingSecretShowsUpOnSecondLoad(t *testing.T) {
 		defer suite.Cleanup()
 
 		testDataManager := testdata.NewTestDataManager()
-		require.NoError(reporter.T(), testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
-
 		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("SecondLoadTest")
-		require.NoError(t, err, "Should generate unique secret")
+		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
+		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
 		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
 
 		// Create a secret
 		err = suite.SecretsService.SaveNewSecret(uniqueSecret.UniqueName, uniqueSecret.Value)
-		require.NoError(t, err, "Should be able to create secret")
+		require.NoError(t, err, shouldBeAbleToCreateSecretMsg)
 
 		// // Simulate app restart by creating a new suite with the same data directory
 		// suite2 := helpers.NewIntegrationTestSuite(reporter)
@@ -96,15 +101,15 @@ func TestSecretVersioning(t *testing.T) {
 		defer suite.Cleanup()
 
 		testDataManager := testdata.NewTestDataManager()
-		require.NoError(reporter.T(), testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
-
 		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("VersioningTest")
-		require.NoError(t, err, "Should generate unique secret")
+		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
+		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
 		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
 
 		// Create a secret
 		err = suite.SecretsService.SaveNewSecret(uniqueSecret.UniqueName, uniqueSecret.Value)
-		require.NoError(t, err, "Should be able to create secret")
+		require.NoError(t, err, shouldBeAbleToCreateSecretMsg)
 
 		// Load current secrets from the original suite
 		secrets, err := suite.SecretsService.LoadAllSecrets()
@@ -151,15 +156,15 @@ func TestDeleteSecret(t *testing.T) {
 		defer suite.Cleanup()
 
 		testDataManager := testdata.NewTestDataManager()
-		require.NoError(reporter.T(), testDataManager.ValidateTestData(), testdata.TestDataValidationMsg)
-
 		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("DeleteTest")
-		require.NoError(t, err, "Should generate unique secret")
+		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
+		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
 		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
 
 		// Create a secret
 		err = suite.SecretsService.SaveNewSecret(uniqueSecret.UniqueName, uniqueSecret.Value)
-		require.NoError(t, err, "Should be able to create secret")
+		require.NoError(t, err, shouldBeAbleToCreateSecretMsg)
 
 		// Verify secret exists before deletion
 		secrets, err := suite.SecretsService.LoadAllSecrets()

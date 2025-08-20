@@ -1,7 +1,7 @@
 package e2e
 
 import (
-	"go-password-manager/internal/config/buildconfig"
+	buildconfig "go-password-manager/internal/config/buildConfig"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/domain"

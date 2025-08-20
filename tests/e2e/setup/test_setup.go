@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"go-password-manager/internal/config/buildconfig"
+	buildconfig "go-password-manager/internal/config/buildConfig"
 	"go-password-manager/internal/service"
 
 	"fyne.io/fyne/v2"

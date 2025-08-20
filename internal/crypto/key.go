@@ -3,7 +3,7 @@ package crypto
 import (
 	"crypto/rand"
 	"errors"
-	"go-password-manager/internal/config/buildconfig"
+	buildconfig "go-password-manager/internal/config/buildConfig"
 	"go-password-manager/internal/logger"
 	"os"
 	"path/filepath"

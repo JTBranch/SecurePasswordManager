@@ -130,6 +130,11 @@ jobs:
           draft: false
           prerelease: false
 
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+
       - name: Upload Release Assets
         run: |
           for dir in dist/*/; do

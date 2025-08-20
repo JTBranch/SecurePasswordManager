@@ -4,6 +4,9 @@
 dev:
 	go run ./cmd
 
+run-dev:
+	air 
+
 build:
 	go build -o bin/password-manager ./cmd
 
@@ -28,6 +31,7 @@ test-coverage:
 test-reports:
 	@echo "📊 Generating comprehensive test reports..."
 	@mkdir -p tmp/output
+	rm -rf test-reports/*
 	@echo "Running tests with JSON output..."
 	go test -v -json -race -coverprofile=tmp/output/coverage.out -covermode=atomic -coverpkg=./cmd/...,./internal/...,./ui/... ./... | tee tmp/output/test-results.json
 	@echo "Generating HTML coverage report..."
@@ -140,7 +144,7 @@ help:
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  fmt              - Format code"
-	@echo "  lint             - Run linting"
+	@echo "  lint             - Run linting" 
 	@echo "  vet              - Run go vet"
 	@echo ""
 	@echo "Release Management:"

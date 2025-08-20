@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	buildConfig "go-password-manager/internal/config/buildConfig"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -13,24 +14,19 @@ import (
 
 // EnvironmentConfig represents environment-specific configuration loaded from YAML
 type EnvironmentConfig struct {
-	Application ApplicationConfig `yaml:"application"`
-	UI          UIConfig          `yaml:"ui"`
-	Logging     LoggingConfig     `yaml:"logging"`
-	Security    SecurityConfig    `yaml:"security"`
-	Storage     StorageConfig     `yaml:"storage"`
-	Development DevelopmentConfig `yaml:"development"`
-	Testing     TestingConfig     `yaml:"testing"`
+	Application ApplicationConfig    `yaml:"application"`
+	UI          buildConfig.UIConfig `yaml:"ui"`
+	Logging     LoggingConfig        `yaml:"logging"`
+	Security    SecurityConfig       `yaml:"security"`
+	Storage     StorageConfig        `yaml:"storage"`
+	Development DevelopmentConfig    `yaml:"development"`
+	Testing     TestingConfig        `yaml:"testing"`
 }
 
 type ApplicationConfig struct {
 	Name        string `yaml:"name"`
 	Version     string `yaml:"version"`
 	Environment string `yaml:"environment"`
-}
-
-type UIConfig struct {
-	Window WindowConfig `yaml:"window"`
-	Theme  string       `yaml:"theme"`
 }
 
 type WindowConfig struct {

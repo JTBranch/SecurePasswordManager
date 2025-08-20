@@ -330,3 +330,7 @@ func (c *Config) IsDebug() bool {
 func (c *Config) GetLogLevel() string {
 	return c.Logging.Level
 }
+
+func (c *Config) GetUiConfig() UIConfig {
+	return c.UI
+}

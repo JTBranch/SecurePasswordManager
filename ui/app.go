@@ -2,11 +2,12 @@ package ui
 
 import (
 	"fmt"
-	"go-password-manager/internal/config/buildconfig"
+	buildConfig "go-password-manager/internal/config/buildConfig"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/internal/logger"
 	"go-password-manager/internal/service"
 	"go-password-manager/ui/pages"
+	"go-password-manager/ui/themes"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -17,13 +18,19 @@ type App struct {
 	fyneApp        fyne.App
 	window         fyne.Window
 	configService  *config.ConfigService
-	buildConfig    *buildconfig.Config
+	buildConfig    *buildConfig.Config
 	secretsService *service.SecretsService
 }
 
+const (
+	FALLBACK_WINDOW_WIDTH  = 750
+	FALLBACK_WINDOW_HEIGHT = 1100
+)
+
 // NewApp creates a new application instance
-func NewApp(buildCfg *buildconfig.Config, secretsService *service.SecretsService) *App {
+func NewApp(buildCfg *buildConfig.Config, secretsService *service.SecretsService) *App {
 	fyneApp := app.New()
+	fyneApp.Settings().SetTheme(&themes.LightTheme{})
 	window := fyneApp.NewWindow(buildCfg.Application.Name)
 
 	// Load legacy config service for window size persistence
@@ -31,15 +38,19 @@ func NewApp(buildCfg *buildconfig.Config, secretsService *service.SecretsService
 	if err != nil {
 		// Use environment config defaults
 		window.Resize(fyne.NewSize(
-			float32(buildCfg.UI.Window.Width),
-			float32(buildCfg.UI.Window.Height),
+			float32(FALLBACK_WINDOW_WIDTH),
+			float32(FALLBACK_WINDOW_HEIGHT),
 		))
 	} else {
 		width, height := configService.GetWindowSize()
 		if buildCfg.Logging.Debug {
 			logger.Debug(fmt.Sprintf("Loaded window size from config, width: %d, height: %d", width, height))
 		}
-		window.Resize(fyne.NewSize(float32(width), float32(height)))
+		if width == 0 || height == 0 {
+			window.Resize(fyne.NewSize(750, 1100))
+		} else {
+			window.Resize(fyne.NewSize(float32(width), float32(height)))
+		}
 	}
 
 	return &App{

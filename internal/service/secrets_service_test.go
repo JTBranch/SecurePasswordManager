@@ -15,10 +15,13 @@ import (
 )
 
 const (
-	testSecretsFile = "test_secrets.json"
-	nonExistentName = "non-existent"
-	errCreateSecret = "Expected no error creating secret"
-	errLoadSecrets  = "Expected no error loading secrets"
+	testSecretsFile        = "test_secrets.json"
+	nonExistentName        = "non-existent"
+	errCreateSecret        = "Expected no error creating secret"
+	errLoadSecrets         = "Expected no error loading secrets"
+	errGetSecretValue      = "Expected no error getting secret value"
+	errGettingSecretFailed = "getting secret failed"
+	secretValueShouldMatch = "Secret value should match"
 )
 
 // Mock CryptoService for testing
@@ -148,13 +151,13 @@ func TestSecretsService(t *testing.T) {
 
 		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
 		tc.Require.NoError(err, errCreateSecret)
-
 		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
-		tc.Require.NoError(err, "getting secret failed")
-
+		tc.Require.NoError(err, errGettingSecretFailed)
 		value, err := svc.GetSecretValue(secret)
-		tc.Require.NoError(err, "Expected no error getting secret value")
-		tc.Assert.Equal(testdata.TestSecrets.Simple.Value, value, "Secret value should match")
+		tc.Require.NoError(err, errGetSecretValue)
+		tc.Assert.Equal(testdata.TestSecrets.Simple.Value, value, secretValueShouldMatch)
+		tc.Assert.Equal(testdata.TestSecrets.Simple.Value, value, secretValueShouldMatch)
+		tc.Assert.Equal(testdata.TestSecrets.Simple.Value, value, secretValueShouldMatch)
 	})
 
 	helpers.WithUnitTestCase(t, "GetSecretValueByVersion", func(tc *helpers.UnitTestCase) {
@@ -164,17 +167,17 @@ func TestSecretsService(t *testing.T) {
 		tc.Require.NoError(err, errCreateSecret)
 		err = svc.UpdateSecret(testdata.TestSecrets.Simple.Name, "value2")
 		tc.Require.NoError(err, "updating secret failed")
-
 		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
-		tc.Require.NoError(err, "getting secret failed")
-
+		tc.Require.NoError(err, errGettingSecretFailed)
 		value, err := svc.GetSecretValueByVersion(secret, 1)
-		tc.Require.NoError(err, "Expected no error getting secret value")
-		tc.Assert.Equal("value1", value, "Secret value should match")
+		tc.Require.NoError(err, errGetSecretValue)
+		tc.Assert.Equal("value1", value, secretValueShouldMatch)
 
 		value, err = svc.GetSecretValueByVersion(secret, 2)
-		tc.Require.NoError(err, "Expected no error getting secret value")
-		tc.Assert.Equal("value2", value, "Secret value should match")
+		tc.Require.NoError(err, errGetSecretValue)
+		tc.Assert.Equal("value2", value, secretValueShouldMatch)
+		tc.Assert.Equal("value2", value, secretValueShouldMatch)
+		tc.Assert.Equal("value2", value, secretValueShouldMatch)
 	})
 
 	helpers.WithUnitTestCase(t, "GetSecretValueInvalidVersion", func(tc *helpers.UnitTestCase) {
@@ -182,11 +185,11 @@ func TestSecretsService(t *testing.T) {
 
 		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
 		tc.Require.NoError(err, errCreateSecret)
-
 		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
-		tc.Require.NoError(err, "getting secret failed")
+		tc.Require.NoError(err, errGettingSecretFailed)
 
 		_, err = svc.GetSecretValueByVersion(secret, 99)
+		tc.Assert.Error(err, "Expected error for invalid version")
 		tc.Assert.Error(err, "Expected error for invalid version")
 	})
 

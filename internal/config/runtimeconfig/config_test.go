@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	buildConfig "go-password-manager/internal/config/buildConfig"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/tests/helpers"
 	"os"
@@ -10,11 +11,10 @@ import (
 
 // mockBuildConfig is a mock implementation of the BuildConfigProvider interface for testing.
 type mockBuildConfig struct {
-	ConfigPath    string
-	PathError     error
-	AppVersion    string
-	InitialWidth  int
-	InitialHeight int
+	ConfigPath string
+	PathError  error
+	AppVersion string
+	ui         buildConfig.UIConfig
 }
 
 // GetConfigFilePath returns a mock config path or an error.
@@ -31,8 +31,8 @@ func (m *mockBuildConfig) GetAppVersion() string {
 }
 
 // GetWindowSize returns mock window dimensions.
-func (m *mockBuildConfig) GetWindowSize() (int, int) {
-	return m.InitialWidth, m.InitialHeight
+func (m *mockBuildConfig) GetUiConfig() buildConfig.UIConfig {
+	return m.ui
 }
 
 func TestNewConfigServiceInitialization(t *testing.T) {
@@ -47,11 +47,15 @@ func TestNewConfigServiceInitialization(t *testing.T) {
 		// Setup mock to return a valid path to a non-existent file.
 		// This will cause `loadConfigFromFile` to fail, triggering the default creation logic.
 		mockProvider := &mockBuildConfig{
-			ConfigPath:    configFilePath,
-			PathError:     nil, // No error getting the path
-			AppVersion:    "v1.2.3-mock",
-			InitialWidth:  1280,
-			InitialHeight: 720,
+			ConfigPath: configFilePath,
+			PathError:  nil, // No error getting the path
+			AppVersion: "v1.2.3-mock",
+			ui: buildConfig.UIConfig{
+				Window: buildConfig.WindowConfig{
+					Width:  1280,
+					Height: 720,
+				},
+			},
 		}
 
 		service, err := config.NewConfigService(mockProvider)

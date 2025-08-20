@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	buildConfig "go-password-manager/internal/config/buildConfig"
+
 	"github.com/google/uuid"
 )
 
@@ -27,7 +29,7 @@ type ConfigService struct {
 type BuildConfigProvider interface {
 	GetConfigFilePath() (string, error)
 	GetAppVersion() string
-	GetWindowSize() (int, int)
+	GetUiConfig() buildConfig.UIConfig
 }
 
 // NewConfigService creates a new ConfigService.
@@ -42,11 +44,11 @@ func NewConfigService(buildCfg BuildConfigProvider) (*ConfigService, error) {
 	loadedConfig, err := loadConfigFromFile(configPath)
 	if err != nil {
 		// If file doesn't exist or is corrupt, create a new default config
-		initialWidth, initialHeight := buildCfg.GetWindowSize()
+		uiConfig := buildCfg.GetUiConfig()
 		newConfig := &AppConfig{
 			AppVersion:   buildCfg.GetAppVersion(),
-			WindowWidth:  initialWidth,
-			WindowHeight: initialHeight,
+			WindowWidth:  uiConfig.Window.Width,
+			WindowHeight: uiConfig.Window.Height,
 		}
 
 		// Generate a new KeyUUID

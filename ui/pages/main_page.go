@@ -1,13 +1,14 @@
 package pages
 
 import (
-	"go-password-manager/internal/config/buildconfig"
+	buildconfig "go-password-manager/internal/config/buildConfig"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/service"
 	"go-password-manager/internal/storage"
 	"go-password-manager/ui/atoms"
 	"go-password-manager/ui/molecules"
+	"go-password-manager/ui/themes"
 	"log"
 	"strings"
 
@@ -101,7 +102,7 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 	}
 
 	// --- AppHeader logic moved to component ---
-	header := molecules.AppHeader(molecules.AppHeaderProps{
+	props := molecules.AppHeaderProps{
 		OnSearch: func(query string) {
 			fileData, _ = secretsService.LoadAllSecrets()
 			listBox.Objects = nil
@@ -142,8 +143,18 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 			// TODO: Implement menu functionality
 			// This will be used for importing secrets from browser, etc.
 		},
-	})
+	}
+	props.OnThemeChange = func(themeName string) {
+		println("Theme changed to:", themeName)
+		switch themeName {
+		case "light":
+			fyne.CurrentApp().Settings().SetTheme(&themes.LightTheme{})
+		case "dark":
+			fyne.CurrentApp().Settings().SetTheme(&themes.DarkTheme{})
+		}
+	}
 
+	header := molecules.AppHeader(props, win)
 	updateList()
 
 	split := container.NewHSplit(listBox, detailBox)
