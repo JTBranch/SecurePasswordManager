@@ -3,6 +3,8 @@ package buildconfig
 import (
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLoadDefaultConfig(t *testing.T) {
@@ -109,4 +111,28 @@ func TestEnvironmentDetection(t *testing.T) {
 			t.Errorf("Environment %s: expected IsTest() %v, got %v", tt.env, tt.isTest, config.IsTest())
 		}
 	}
+}
+
+func TestDynamicConfigMerging(t *testing.T) {
+	t.Run("Test Config Merging", (func(t *testing.T) {
+		// Set working directory to configDir for test
+		oldWd, _ := os.Getwd()
+		os.Chdir("")
+		defer os.Chdir(oldWd)
+
+		// Set env so Load() picks up development.yaml
+		os.Setenv("GO_PASSWORD_MANAGER_ENV", "development")
+		defer os.Unsetenv("GO_PASSWORD_MANAGER_ENV")
+
+		cfg, err := Load()
+		assert.NoError(t, err)
+		assert.Equal(t, "GoPasswordManager", cfg.Application.Name)
+		assert.Equal(t, "development", cfg.Application.Environment)
+		assert.Equal(t, 1600, cfg.UI.Window.Width)
+		assert.Equal(t, 900, cfg.UI.Window.Height) // fallback from default
+		assert.Equal(t, "default", cfg.UI.Theme)   // fallback from default
+		assert.Equal(t, true, cfg.Logging.Debug)
+		assert.Equal(t, "debug", cfg.Logging.Level)
+		assert.Equal(t, "console", cfg.Logging.Format)
+	}))
 }

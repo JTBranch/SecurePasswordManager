@@ -51,6 +51,10 @@ func NewApp(buildCfg *buildconfig.Config, secretsService *service.SecretsService
 		} else {
 			window.Resize(fyne.NewSize(float32(width), float32(height)))
 		}
+		configTheme := configService.GetTheme()
+		if configTheme != "" {
+			fyneApp.Settings().SetTheme(themes.ThemeFromName(configTheme))
+		}
 	}
 
 	return &App{
@@ -64,7 +68,7 @@ func NewApp(buildCfg *buildconfig.Config, secretsService *service.SecretsService
 
 // Run starts the application
 func (a *App) Run() {
-	a.window.SetContent(pages.MainPageWithService(a.window, a.secretsService))
+	a.window.SetContent(pages.MainPageWithService(a.window, a.secretsService, a.configService))
 
 	// Save window size on close
 	a.window.SetOnClosed(func() {

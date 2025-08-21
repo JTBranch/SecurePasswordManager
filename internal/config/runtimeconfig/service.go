@@ -16,6 +16,7 @@ type AppConfig struct {
 	AppVersion   string `json:"appVersion"`
 	WindowWidth  int    `json:"windowWidth"`
 	WindowHeight int    `json:"windowHeight"`
+	Theme        string `json:"theme"`
 }
 
 // ConfigService manages application configuration
@@ -104,4 +105,13 @@ func (cs *ConfigService) GetWindowSize() (int, int) {
 // GetKeyUUID returns the key UUID from the configuration
 func (cs *ConfigService) GetKeyUUID() string {
 	return cs.Config.KeyUUID
+}
+
+func (cs *ConfigService) GetTheme() string {
+	return cs.Config.Theme
+}
+
+func (cs *ConfigService) SetTheme(theme string) {
+	cs.Config.Theme = theme
+	cs.Save()
 }

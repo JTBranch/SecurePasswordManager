@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os" // Changed from io/ioutil
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -103,23 +104,24 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to find project root: %w", err)
 	}
 
-	// Try to load environment-specific config first
+	// Always load default config first
+	defaultConfigPath := filepath.Join(root, "configs", "default.yaml")
+	defaultConfig, err := loadConfigFile(defaultConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load default config: %w", err)
+	}
+
+	// Try to load environment-specific config and merge dynamically
 	envConfigPath := filepath.Join(root, "configs", fmt.Sprintf("%s.yaml", env))
 	var config *Config
-
 	if _, statErr := os.Stat(envConfigPath); statErr == nil {
-		// if it exists, load it
-		config, err = loadConfigFile(envConfigPath)
+		envConfig, err := loadConfigFile(envConfigPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load %s config: %w", env, err)
 		}
+		config = mergeConfigDynamic(defaultConfig, envConfig)
 	} else {
-		// otherwise, fall back to default
-		defaultConfigPath := filepath.Join(root, "configs", "default.yaml")
-		config, err = loadConfigFile(defaultConfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load default config: %w", err)
-		}
+		config = defaultConfig
 	}
 
 	// Apply environment variable overrides
@@ -127,6 +129,51 @@ func Load() (*Config, error) {
 
 	globalConfig = config
 	return config, nil
+}
+
+// mergeConfigDynamic merges envConfig into baseConfig using reflection
+func mergeConfigDynamic(baseConfig, envConfig *Config) *Config {
+	result := *baseConfig
+	baseVal := reflect.ValueOf(&result).Elem()
+	envVal := reflect.ValueOf(envConfig).Elem()
+
+	for i := 0; i < baseVal.NumField(); i++ {
+		field := baseVal.Field(i)
+		envField := envVal.Field(i)
+
+		// If the field is a struct, recurse
+		if field.Kind() == reflect.Struct {
+			merged := mergeStruct(field, envField)
+			field.Set(merged)
+		} else {
+			if !isZeroValue(envField) {
+				field.Set(envField)
+			}
+		}
+	}
+	return &result
+}
+
+func mergeStruct(base, override reflect.Value) reflect.Value {
+	result := reflect.New(base.Type()).Elem()
+	for i := 0; i < base.NumField(); i++ {
+		baseField := base.Field(i)
+		overrideField := override.Field(i)
+		if baseField.Kind() == reflect.Struct {
+			result.Field(i).Set(mergeStruct(baseField, overrideField))
+		} else {
+			if !isZeroValue(overrideField) {
+				result.Field(i).Set(overrideField)
+			} else {
+				result.Field(i).Set(baseField)
+			}
+		}
+	}
+	return result
+}
+
+func isZeroValue(v reflect.Value) bool {
+	return reflect.DeepEqual(v.Interface(), reflect.Zero(v.Type()).Interface())
 }
 
 // Get returns the loaded configuration

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/internal/service"
 	"go-password-manager/ui/pages"
 
@@ -20,6 +21,7 @@ const (
 type MainPageObject struct {
 	window         fyne.Window
 	secretsService *service.SecretsService
+	configService  *config.ConfigService
 	mainContent    fyne.CanvasObject
 	t              *testing.T
 }
@@ -35,7 +37,7 @@ func NewMainPageObject(t *testing.T, window fyne.Window, secretsService *service
 
 // LoadPage loads the main page content
 func (p *MainPageObject) LoadPage() {
-	p.mainContent = pages.MainPageWithService(p.window, p.secretsService)
+	p.mainContent = pages.MainPageWithService(p.window, p.secretsService, p.configService)
 	p.window.SetContent(p.mainContent)
 	p.waitForUIUpdate()
 }

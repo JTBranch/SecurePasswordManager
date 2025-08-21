@@ -1,15 +1,12 @@
 package pages
 
 import (
-	buildconfig "go-password-manager/internal/config/buildconfig"
 	config "go-password-manager/internal/config/runtimeconfig"
-	"go-password-manager/internal/crypto"
+	"go-password-manager/internal/logger"
 	"go-password-manager/internal/service"
-	"go-password-manager/internal/storage"
 	"go-password-manager/ui/atoms"
 	"go-password-manager/ui/molecules"
 	"go-password-manager/ui/themes"
-	"log"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -17,34 +14,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-var defaultSecretsService *service.SecretsService
-
-func init() {
-	buildCfg, err := buildconfig.Load()
-	if err != nil {
-		log.Fatalf("Failed to load build config: %v", err)
-	}
-	configService, err := config.NewConfigService(buildCfg)
-	if err != nil {
-		log.Fatalf("Failed to create config service: %v", err)
-	}
-	cryptoService, err := crypto.NewCryptoService(configService)
-	if err != nil {
-		log.Fatalf("Failed to create crypto service: %v", err)
-	}
-	secretsPath, err := buildCfg.GetSecretsFilePath()
-	if err != nil {
-		log.Fatalf("Failed to get secrets file path: %v", err)
-	}
-	storageService := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "default-user")
-	defaultSecretsService = service.NewSecretsService(cryptoService, storageService)
-}
-
-func MainPage(win fyne.Window) fyne.CanvasObject {
-	return MainPageWithService(win, defaultSecretsService)
-}
-
-func MainPageWithService(win fyne.Window, secretsService *service.SecretsService) fyne.CanvasObject {
+func MainPageWithService(win fyne.Window, secretsService *service.SecretsService, configService *config.ConfigService) fyne.CanvasObject {
 	fileData, _ := secretsService.LoadAllSecrets()
 	var selectedIdx int = -1
 	listBox := container.NewVBox()
@@ -145,12 +115,15 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 		},
 	}
 	props.OnThemeChange = func(themeName string) {
-		println("Theme changed to:", themeName)
+		logger.Debug("Theme changed to:", themeName)
 		switch themeName {
 		case "light":
 			fyne.CurrentApp().Settings().SetTheme(&themes.LightTheme{})
+			configService.SetTheme(themeName)
+
 		case "dark":
 			fyne.CurrentApp().Settings().SetTheme(&themes.DarkTheme{})
+			configService.SetTheme(themeName)
 		}
 	}
 

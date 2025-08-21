@@ -81,3 +81,14 @@ func (t *DarkTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 func (t *DarkTheme) Size(name fyne.ThemeSizeName) float32 {
 	return theme.DefaultTheme().Size(name)
 }
+
+func ThemeFromName(name string) fyne.Theme {
+	switch name {
+	case "dark":
+		return &DarkTheme{}
+	case "light":
+		return &LightTheme{}
+	default:
+		return &LightTheme{} // fallback
+	}
+}
