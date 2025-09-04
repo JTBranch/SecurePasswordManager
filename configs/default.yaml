@@ -14,6 +14,7 @@ logging:
   debug: true
   level: "info"
   format: "json"
+  useUserConfigDir: false
 
 security:
   encryption:
@@ -23,6 +24,7 @@ security:
 storage:
   secrets_file: "secrets.json"
   config_file: "app.config"
+  device_keys_file: "device_keys.json"
 
 development:
   hot_reload: false

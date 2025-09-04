@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"go-password-manager/internal/domain"
@@ -10,8 +11,8 @@ import (
 
 // CryptoProvider defines the contract for cryptographic operations that the SecretsService needs.
 type CryptoProvider interface {
-	Encrypt(data, key []byte) ([]byte, error)
-	Decrypt(data, key []byte) ([]byte, error)
+	EncryptSymmetric(plaintext, key []byte) ([]byte, []byte, error)
+	DecryptSymmetric(ciphertext, nonce, key []byte) ([]byte, error)
 	GetKey() []byte
 }
 
@@ -69,7 +70,7 @@ func (s *SecretsService) SaveNewSecret(name, value string) error {
 		}
 	}
 
-	encryptedValue, err := s.crypto.Encrypt([]byte(value), s.crypto.GetKey())
+	encryptedValue, nonce, err := s.crypto.EncryptSymmetric([]byte(value), s.crypto.GetKey())
 	if err != nil {
 		return err
 	}
@@ -79,7 +80,8 @@ func (s *SecretsService) SaveNewSecret(name, value string) error {
 		Versions: []domain.SecretVersion{
 			{
 				Version:        1,
-				SecretValueEnc: string(encryptedValue),
+				SecretValueEnc: base64.StdEncoding.EncodeToString(encryptedValue),
+				Nonce:          nonce,
 				UpdatedAt:      time.Now().Format(time.RFC3339),
 			},
 		},
@@ -108,14 +110,15 @@ func (s *SecretsService) UpdateSecret(name, newValue string) error {
 		return fmt.Errorf("secret '%s' not found", name)
 	}
 
-	encryptedValue, err := s.crypto.Encrypt([]byte(newValue), s.crypto.GetKey())
+	encryptedValue, nonce, err := s.crypto.EncryptSymmetric([]byte(newValue), s.crypto.GetKey())
 	if err != nil {
 		return err
 	}
 
 	newVersion := domain.SecretVersion{
 		Version:        secretToUpdate.CurrentVersion + 1,
-		SecretValueEnc: string(encryptedValue),
+		SecretValueEnc: base64.StdEncoding.EncodeToString(encryptedValue),
+		Nonce:          nonce,
 		UpdatedAt:      time.Now().Format(time.RFC3339),
 	}
 
@@ -161,10 +164,18 @@ func (s *SecretsService) GetSecretValue(secret *domain.Secret) (string, error) {
 	if currentVersion == nil {
 		return "", fmt.Errorf("no current version found for secret '%s'", secret.SecretName)
 	}
-	plainBytes, err := s.crypto.Decrypt([]byte(currentVersion.SecretValueEnc), s.crypto.GetKey())
+
+	encryptedData, err := base64.StdEncoding.DecodeString(currentVersion.SecretValueEnc)
 	if err != nil {
+		return "", fmt.Errorf("failed to decode encrypted data: %v", err)
+	}
+
+	plainBytes, err := s.crypto.DecryptSymmetric(encryptedData, currentVersion.Nonce, s.crypto.GetKey())
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to decrypt secret '%s': ", secret.SecretName), err)
 		return "", err
 	}
+	logger.Debug("Decrypted secret value:", string(plainBytes))
 	return string(plainBytes), nil
 }
 
@@ -173,10 +184,17 @@ func (s *SecretsService) GetSecretValueByVersion(secret *domain.Secret, versionN
 		if version.Version == versionNumber {
 			logger.Debug("Decrypting secret version:", fmt.Sprintf("%d", version.Version))
 
-			plainBytes, err := s.crypto.Decrypt([]byte(version.SecretValueEnc), s.crypto.GetKey())
+			encryptedData, err := base64.StdEncoding.DecodeString(version.SecretValueEnc)
 			if err != nil {
+				return "", fmt.Errorf("failed to decode encrypted data for version %d: %v", version.Version, err)
+			}
+
+			plainBytes, err := s.crypto.DecryptSymmetric(encryptedData, version.Nonce, s.crypto.GetKey())
+			if err != nil {
+				logger.Error(fmt.Sprintf("Failed to decrypt secret version %d for '%s': ", version.Version, secret.SecretName), err)
 				return "", err
 			}
+
 			return string(plainBytes), nil
 		}
 	}

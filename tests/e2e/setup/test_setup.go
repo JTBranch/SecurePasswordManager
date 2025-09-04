@@ -78,7 +78,7 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 	if err != nil {
 		suite.t.Fatalf("Failed to create config service: %v", err)
 	}
-	cryptoService, err := crypto.NewCryptoService(configService)
+	cryptoService, err := crypto.NewCryptoServiceDefault(configService)
 	if err != nil {
 		suite.t.Fatalf("Failed to create crypto service: %v", err)
 	}

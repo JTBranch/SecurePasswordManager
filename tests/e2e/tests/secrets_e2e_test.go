@@ -31,7 +31,7 @@ func testCreateEditDeleteWorkflow(reporter *reporting.TestWrapper) {
 	configService, err := config.NewConfigService(buildCfg)
 	require.NoError(t, err, "Failed to create config service")
 
-	cryptoService, err := crypto.NewCryptoService(configService)
+	cryptoService, err := crypto.NewCryptoServiceDefault(configService)
 	require.NoError(t, err, "Failed to create crypto service")
 
 	secretsPath, err := buildCfg.GetSecretsFilePath()
@@ -137,7 +137,7 @@ func TestErrorHandlingE2E(t *testing.T) {
 		configService, err := config.NewConfigService(buildCfg)
 		require.NoError(t, err, "Failed to create config service")
 
-		cryptoService, err := crypto.NewCryptoService(configService)
+		cryptoService, err := crypto.NewCryptoServiceDefault(configService)
 		require.NoError(t, err, "Failed to create crypto service")
 
 		secretsPath, err := buildCfg.GetSecretsFilePath()

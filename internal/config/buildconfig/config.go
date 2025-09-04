@@ -40,9 +40,10 @@ type WindowConfig struct {
 }
 
 type LoggingConfig struct {
-	Debug  bool   `yaml:"debug"`
-	Level  string `yaml:"level"`
-	Format string `yaml:"format"`
+	Debug            bool   `yaml:"debug"`
+	Level            string `yaml:"level"`
+	Format           string `yaml:"format"`
+	UseUserConfigDir bool   `yaml:"useUserConfigDir"`
 }
 
 type SecurityConfig struct {
@@ -55,8 +56,9 @@ type EncryptionConfig struct {
 }
 
 type StorageConfig struct {
-	SecretsFile string `yaml:"secrets_file"`
-	ConfigFile  string `yaml:"config_file"`
+	SecretsFile    string `yaml:"secrets_file"`
+	ConfigFile     string `yaml:"config_file"`
+	DeviceKeysFile string `yaml:"device_keys_file"`
 }
 
 type DevelopmentConfig struct {
@@ -380,4 +382,16 @@ func (c *Config) GetLogLevel() string {
 
 func (c *Config) GetUiConfig() UIConfig {
 	return c.UI
+}
+
+func (c *Config) UseUserConfigDir() bool {
+	return c.Logging.UseUserConfigDir
+}
+
+func (c *Config) GetAppName() string {
+	return c.Application.Name
+}
+
+func (c *Config) GetDeviceKeysFilePath() string {
+	return c.Storage.DeviceKeysFile
 }

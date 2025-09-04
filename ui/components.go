@@ -27,7 +27,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to create config service: %v", err)
 	}
-	cryptoService, err := crypto.NewCryptoService(configService)
+	cryptoService, err := crypto.NewCryptoServiceDefault(configService)
 	if err != nil {
 		log.Fatalf("Failed to create crypto service: %v", err)
 	}

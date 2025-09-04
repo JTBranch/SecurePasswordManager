@@ -4,10 +4,18 @@ import (
 	"crypto/rand"
 	"errors"
 	buildconfig "go-password-manager/internal/config/buildconfig"
+	"go-password-manager/internal/config/devicekeys"
 	"go-password-manager/internal/logger"
 	"os"
 	"path/filepath"
 )
+
+var pemProvider PEMProvider
+
+// PEMProvider defines methods for PEM encoding/decoding X25519 keys
+func init() {
+	pemProvider = &PemUtils{}
+}
 
 func keyFilePath(keyUUID string) (string, error) {
 	buildCfg, err := buildconfig.Load()
@@ -45,6 +53,17 @@ func keyFilePath(keyUUID string) (string, error) {
 	return filepath.Join(appConfigDir, "."+keyUUID), nil // Obfuscated file name
 }
 
+func CreateSymmetricKey(keySize int) ([]byte, error) {
+	key := make([]byte, keySize)
+	_, err := rand.Read(key)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debug("creating new encryption key: ", string(key))
+	return key, nil
+}
+
 // LoadOrCreateKey loads an existing encryption key or creates a new one
 func LoadOrCreateKey(configProvider ConfigProvider) ([]byte, error) {
 	buildCfg, err := buildconfig.Load()
@@ -72,19 +91,12 @@ func LoadOrCreateKey(configProvider ConfigProvider) ([]byte, error) {
 		if keySize == 0 {
 			keySize = 32 // Default to AES-256
 		}
-
-		key := make([]byte, keySize)
-		_, err := rand.Read(key)
-		if err != nil {
+		createdKey, _ := CreateSymmetricKey(keySize)
+		encodedKey, _ := pemProvider.EncodeKeyToPEM(createdKey, devicekeys.KeyTypeSymmetric)
+		if err := os.WriteFile(path, encodedKey, 0600); err != nil {
 			return nil, err
 		}
-
-		if err := os.WriteFile(path, key, 0600); err != nil {
-			return nil, err
-		}
-
-		logger.Debug("creating new encryption key: ", string(key))
-		return key, nil
+		return createdKey, nil
 	}
 
 	// Load existing key
@@ -98,5 +110,9 @@ func LoadOrCreateKey(configProvider ConfigProvider) ([]byte, error) {
 		return nil, errors.New("encryption key is empty")
 	}
 
-	return key, nil
+	decodedKey, err := pemProvider.DecodeKeyFromPEM(key, devicekeys.KeyTypeSymmetric)
+	if err != nil {
+		return nil, err
+	}
+	return decodedKey, nil
 }

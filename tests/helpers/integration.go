@@ -3,9 +3,11 @@ package helpers
 import (
 	"fmt"
 	buildconfig "go-password-manager/internal/config/buildconfig"
+	"go-password-manager/internal/config/devicekeys"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/service"
+	"go-password-manager/internal/sharing"
 	"go-password-manager/internal/storage"
 	"go-password-manager/tests/reporting"
 	"os"
@@ -13,13 +15,18 @@ import (
 
 // IntegrationTestSuite holds the test environment setup for service layer testing
 type IntegrationTestSuite struct {
-	testDataDir    string
-	originalEnv    string
-	SecretsService *service.SecretsService
-	Reporter       *reporting.TestWrapper
-	CryptoService  *crypto.CryptoService
-	BuildConfig    *buildconfig.Config
-	ConfigService  *config.ConfigService
+	testDataDir          string
+	originalEnv          string
+	SecretsService       *service.SecretsService
+	Reporter             *reporting.TestWrapper
+	CryptoService        *crypto.CryptoService
+	BuildConfig          *buildconfig.Config
+	ConfigService        *config.ConfigService
+	ExportService        *sharing.ExportService
+	SharingService       *sharing.SharingService
+	PemUtils             *crypto.PemUtils
+	DeviceKeyManager     *crypto.DeviceKeyManager
+	DeviceKeyFileService *devicekeys.DeviceKeyFileService
 }
 
 // NewIntegrationTestSuite creates a new integration test suite
@@ -56,11 +63,10 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 		suite.Reporter.T().Fatalf("Failed to create config service: %v", err)
 	}
 
-	suite.CryptoService, err = crypto.NewCryptoService(suite.ConfigService)
+	suite.CryptoService, err = crypto.NewCryptoServiceDefault(suite.ConfigService)
 	if err != nil {
 		suite.Reporter.T().Fatalf("Failed to create crypto service: %v", err)
 	}
-
 	// Initialize secrets service with test configuration
 	secretsPath, err := suite.BuildConfig.GetSecretsFilePath()
 	fmt.Println("Secrets file path:", secretsPath)
@@ -69,6 +75,23 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 	}
 	storageService := storage.NewFileStorage(secretsPath, suite.BuildConfig.Application.Version, "integration-user")
 	suite.SecretsService = service.NewSecretsService(suite.CryptoService, storageService)
+
+	suite.DeviceKeyFileService, err = devicekeys.NewDeviceKeyFileService(suite.BuildConfig)
+	if err != nil {
+		suite.Reporter.T().Fatalf("Failed to create Device Key File Service: %v", err)
+	}
+
+	suite.PemUtils = &crypto.PemUtils{}
+
+	suite.DeviceKeyManager, err = crypto.NewDeviceKeyManager(suite.CryptoService, suite.PemUtils, suite.DeviceKeyFileService)
+
+	if err != nil {
+		suite.Reporter.T().Fatalf("Failed to create Device Key Manager: %v", err)
+	}
+
+	suite.ExportService = sharing.NewExportService(suite.CryptoService, suite.DeviceKeyManager)
+
+	suite.SharingService = sharing.NewSharingService(suite.ExportService, suite.SecretsService)
 }
 
 // SetTestDataDir sets the test data directory (for reusing existing test data)

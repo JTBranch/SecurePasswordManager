@@ -6,6 +6,7 @@ logging:
   debug: false
   level: "info"
   format: "json"
+  useUserConfigDir: true
 
 development:
   hot_reload: false
