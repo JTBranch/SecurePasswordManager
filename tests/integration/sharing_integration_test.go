@@ -96,7 +96,7 @@ func TestCanGenerateAndShareSecretBundle(t *testing.T) {
 		require.Equal(t, 32, len(exportBundle.Payload.SenderInfo.SigningPublicKey), "SigningPublicKey should be 32 bytes (Ed25519 public key)")
 		require.NotEqual(t, file.Secrets, exportBundle.Payload.EncryptedSecrets, "EncryptedSecrets should not match plaintext")
 
-		sig, err := json.Marshal(exportBundle)
+		sig, err := json.Marshal(exportBundle.Payload)
 		require.NoError(t, err, "Failed to marshal export bundle")
 
 		valid, err := suite.CryptoService.VerifyEd25519(
