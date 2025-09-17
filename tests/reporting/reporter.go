@@ -40,14 +40,23 @@ type LogEntry struct {
 	Source    string    `json:"source"`
 }
 
+var outputDir = filepath.Join("tmp", "output", "test-reports")
+
+func init() {
+	// Ensure output directory exists and is empty
+	os.MkdirAll(outputDir, 0755)
+	entries, err := os.ReadDir(outputDir)
+	if err == nil {
+		for _, entry := range entries {
+			os.RemoveAll(filepath.Join(outputDir, entry.Name()))
+		}
+	}
+	// delete any keys created between runs
+	os.RemoveAll(filepath.Join("keys"))
+}
+
 // NewTestReporter creates a new test reporter
 func NewTestReporter(testName string) (*TestReporter, error) {
-	// Ensure tmp/output directory exists
-	outputDir := filepath.Join("tmp", "output", "test-reports")
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create output directory: %w", err)
-	}
-
 	// Create test-specific log file
 	logFileName := fmt.Sprintf("%s-%d.log", testName, time.Now().UnixNano())
 	logFilePath := filepath.Join(outputDir, logFileName)

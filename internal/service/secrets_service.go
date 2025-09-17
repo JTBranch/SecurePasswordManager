@@ -57,6 +57,66 @@ func (s *SecretsService) GetSecret(name string) (*domain.Secret, error) {
 	return nil, fmt.Errorf("secret not found: %s", name)
 }
 
+func (s *SecretsService) SaveOrUpdateSecrets(secrets []domain.Secret) error {
+	logger.Debug("Doing bulk save/update for secrets")
+	for _, secret := range secrets {
+		if err := s.SaveOrUpdateSecret(secret.SecretName, secret.GetCurrentVersion().SecretValueEnc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *SecretsService) SaveOrUpdateSecret(name, value string) error {
+	logger.Debug("updating or creating secret " + name)
+	secretsData, err := s.storage.ReadSecrets()
+	if err != nil {
+		return err
+	}
+
+	var secretToUpdate *domain.Secret
+	for i := range secretsData.Secrets {
+		if secretsData.Secrets[i].SecretName == name {
+			secretToUpdate = &secretsData.Secrets[i]
+			break
+		}
+	}
+
+	encryptedValue, nonce, err := s.crypto.EncryptSymmetric([]byte(value), s.crypto.GetKey())
+	if err != nil {
+		return err
+	}
+
+	if secretToUpdate == nil {
+		// New secret
+		newSecret := domain.Secret{
+			SecretName: name,
+			Versions: []domain.SecretVersion{
+				{
+					Version:        1,
+					SecretValueEnc: base64.StdEncoding.EncodeToString(encryptedValue),
+					Nonce:          nonce,
+					UpdatedAt:      time.Now().Format(time.RFC3339),
+				},
+			},
+			CurrentVersion: 1,
+		}
+		secretsData.Secrets = append(secretsData.Secrets, newSecret)
+	} else {
+		// Update existing secret
+		newVersion := domain.SecretVersion{
+			Version:        secretToUpdate.CurrentVersion + 1,
+			SecretValueEnc: base64.StdEncoding.EncodeToString(encryptedValue),
+			Nonce:          nonce,
+			UpdatedAt:      time.Now().Format(time.RFC3339),
+		}
+		secretToUpdate.Versions = append(secretToUpdate.Versions, newVersion)
+		secretToUpdate.CurrentVersion++
+	}
+
+	return s.storage.WriteSecrets(secretsData)
+}
+
 func (s *SecretsService) SaveNewSecret(name, value string) error {
 	secretsData, err := s.storage.ReadSecrets()
 	if err != nil {

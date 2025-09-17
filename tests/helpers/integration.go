@@ -5,6 +5,7 @@ import (
 	buildconfig "go-password-manager/internal/config/buildconfig"
 	"go-password-manager/internal/config/devicekeys"
 	config "go-password-manager/internal/config/runtimeconfig"
+	"go-password-manager/internal/config/secretkeymetadata"
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/service"
 	"go-password-manager/internal/sharing"
@@ -63,7 +64,17 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 		suite.Reporter.T().Fatalf("Failed to create config service: %v", err)
 	}
 
-	suite.CryptoService, err = crypto.NewCryptoServiceDefault(suite.ConfigService)
+	secretKeyMetadataService, err := secretkeymetadata.NewSecretKeyMetadataFileService(suite.BuildConfig)
+	if err != nil {
+		suite.Reporter.T().Fatalf("Failed to create secret key metadata service: %v", err)
+	}
+
+	secretsEncryptionKeyManager, err := crypto.NewSecretsEncryptionKeyManager(suite.ConfigService, secretKeyMetadataService)
+	if err != nil {
+		suite.Reporter.T().Fatalf("Failed to create secrets encryption key manager: %v", err)
+	}
+
+	suite.CryptoService, err = crypto.NewCryptoServiceDefault(suite.ConfigService, secretsEncryptionKeyManager)
 	if err != nil {
 		suite.Reporter.T().Fatalf("Failed to create crypto service: %v", err)
 	}
@@ -76,10 +87,7 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 	storageService := storage.NewFileStorage(secretsPath, suite.BuildConfig.Application.Version, "integration-user")
 	suite.SecretsService = service.NewSecretsService(suite.CryptoService, storageService)
 
-	suite.DeviceKeyFileService, err = devicekeys.NewDeviceKeyFileService(suite.BuildConfig)
-	if err != nil {
-		suite.Reporter.T().Fatalf("Failed to create Device Key File Service: %v", err)
-	}
+	suite.DeviceKeyFileService = devicekeys.NewDeviceKeyFileService(suite.BuildConfig)
 
 	suite.PemUtils = &crypto.PemUtils{}
 
@@ -89,9 +97,11 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 		suite.Reporter.T().Fatalf("Failed to create Device Key Manager: %v", err)
 	}
 
+	importProvider := sharing.NewImportService(suite.CryptoService, suite.DeviceKeyManager, suite.SecretsService)
+
 	suite.ExportService = sharing.NewExportService(suite.CryptoService, suite.DeviceKeyManager)
 
-	suite.SharingService = sharing.NewSharingService(suite.ExportService, suite.SecretsService)
+	suite.SharingService = sharing.NewSharingService(suite.ExportService, importProvider, suite.SecretsService)
 }
 
 // SetTestDataDir sets the test data directory (for reusing existing test data)

@@ -2,58 +2,52 @@ package crypto
 
 import (
 	"crypto/rand"
-	"errors"
+	"fmt"
 	buildconfig "go-password-manager/internal/config/buildconfig"
-	"go-password-manager/internal/config/devicekeys"
+	"go-password-manager/internal/config/secretkeymetadata"
 	"go-password-manager/internal/logger"
-	"os"
-	"path/filepath"
+	"time"
+
+	"github.com/google/uuid"
 )
 
-var pemProvider PEMProvider
+const (
+	KeyringSecretsEncryption = AppName + "secrets-encryption"
+)
 
-// PEMProvider defines methods for PEM encoding/decoding X25519 keys
-func init() {
-	pemProvider = &PemUtils{}
+type SecretsKeyMetadataProvider interface {
+	UpdateCurrentKey(newKey secretkeymetadata.SecretsEncryptionKeyMetadata) *secretkeymetadata.SecretsKeyMetadataBundle
 }
 
-func keyFilePath(keyUUID string) (string, error) {
+type SecretsEncryptionKeyManager struct {
+	configProvider             ConfigProvider
+	keyringProvider            KeyringProvider
+	secretsKeyMetadataProvidor SecretsKeyMetadataProvider
+	keyUUID                    string
+	keySize                    int
+}
+
+func NewSecretsEncryptionKeyManager(configProvider ConfigProvider,
+	secretsKeyMetadataProvidor SecretsKeyMetadataProvider) (*SecretsEncryptionKeyManager, error) {
+	keyUUID := configProvider.GetKeyUUID()
 	buildCfg, err := buildconfig.Load()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
-	if buildCfg.IsTest() && buildCfg.Testing.DataDir != "" {
-		// For tests, use test data directory
-		keyDir := filepath.Join(buildCfg.Testing.DataDir, "keys")
-		if err := os.MkdirAll(keyDir, 0700); err != nil {
-			return "", err
-		}
-		return filepath.Join(keyDir, "."+keyUUID), nil
-	}
-
-	if buildCfg.IsDevelopment() {
-		// For development, use current directory
-		keyDir := "keys"
-		if err := os.MkdirAll(keyDir, 0700); err != nil {
-			return "", err
-		}
-		return filepath.Join(keyDir, "."+keyUUID), nil
-	}
-
-	// For production, use OS-specific config directory
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-	appConfigDir := filepath.Join(configDir, buildCfg.Application.Name)
-	if err := os.MkdirAll(appConfigDir, 0700); err != nil {
-		return "", err
-	}
-	return filepath.Join(appConfigDir, "."+keyUUID), nil // Obfuscated file name
+	return &SecretsEncryptionKeyManager{
+		configProvider:             configProvider,
+		keyringProvider:            &DefaultKeyringProvider{},
+		secretsKeyMetadataProvidor: secretsKeyMetadataProvidor,
+		keyUUID:                    keyUUID,
+		keySize:                    buildCfg.Security.Encryption.KeySize,
+	}, nil
 }
 
-func CreateSymmetricKey(keySize int) ([]byte, error) {
+func (m *SecretsEncryptionKeyManager) SetKeyringProvider(keyringProvider KeyringProvider) {
+	m.keyringProvider = keyringProvider
+}
+
+func (m *SecretsEncryptionKeyManager) CreateSymmetricKey(keySize int) ([]byte, error) {
 	key := make([]byte, keySize)
 	_, err := rand.Read(key)
 	if err != nil {
@@ -65,54 +59,51 @@ func CreateSymmetricKey(keySize int) ([]byte, error) {
 }
 
 // LoadOrCreateKey loads an existing encryption key or creates a new one
-func LoadOrCreateKey(configProvider ConfigProvider) ([]byte, error) {
-	buildCfg, err := buildconfig.Load()
+func (m *SecretsEncryptionKeyManager) LoadOrCreateKey() ([]byte, error) {
+	key, err := m.keyringProvider.Get(KeyringSecretsEncryption, m.keyUUID)
+
 	if err != nil {
-		return nil, err
+		return m.createKey()
+	} else {
+		return []byte(key), nil
 	}
+}
 
-	// Generate a default key UUID if config service is not available
-	keyUUID := "default-key"
-
-	// Try to get the actual key UUID from config service
-	if configProvider != nil && configProvider.GetKeyUUID() != "" {
-		keyUUID = configProvider.GetKeyUUID()
+func (m *SecretsEncryptionKeyManager) createKey() ([]byte, error) {
+	// Create new key
+	keySize := m.keySize
+	if keySize == 0 {
+		keySize = 32 // Default to AES-256
 	}
+	createdKey, err := m.CreateSymmetricKey(keySize)
+	m.keyringProvider.Set(KeyringSecretsEncryption, m.keyUUID, string(createdKey))
+	now := time.Now()
+	m.secretsKeyMetadataProvidor.UpdateCurrentKey(secretkeymetadata.SecretsEncryptionKeyMetadata{
+		UUID:         m.keyUUID,
+		DateCreated:  now,
+		DateModified: now,
+	})
+	return createdKey, err
 
-	path, err := keyFilePath(keyUUID)
+}
+
+func (m *SecretsEncryptionKeyManager) RotateKey() ([]byte, error) {
+	oldKey, err := m.keyringProvider.Get(KeyringSecretsEncryption, m.keyUUID)
 	if err != nil {
-		return nil, err
-	}
-
-	// Check if key file exists
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		// Create new key
-		keySize := buildCfg.Security.Encryption.KeySize
-		if keySize == 0 {
-			keySize = 32 // Default to AES-256
+		return m.createKey()
+	} else {
+		newKeyUUID, err := uuid.NewRandom()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate KeyUUID: %w", err)
 		}
-		createdKey, _ := CreateSymmetricKey(keySize)
-		encodedKey, _ := pemProvider.EncodeKeyToPEM(createdKey, devicekeys.KeyTypeSymmetric)
-		if err := os.WriteFile(path, encodedKey, 0600); err != nil {
+		oldUUID := m.keyUUID
+		m.keyUUID = newKeyUUID.String()
+		newKey, err := m.createKey()
+		if err != nil {
+			logger.Error("Failed to generate a new Encryption key", err)
 			return nil, err
 		}
-		return createdKey, nil
+		m.keyringProvider.Set(KeyringSecretsEncryption+"-archived", oldUUID, string(oldKey))
+		return newKey, nil
 	}
-
-	// Load existing key
-	key, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate key size
-	if len(key) == 0 {
-		return nil, errors.New("encryption key is empty")
-	}
-
-	decodedKey, err := pemProvider.DecodeKeyFromPEM(key, devicekeys.KeyTypeSymmetric)
-	if err != nil {
-		return nil, err
-	}
-	return decodedKey, nil
 }

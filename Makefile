@@ -19,6 +19,8 @@ test:
 
 test-all:
 	@echo "🧪 Running comprehensive test suite..."
+	rm -rf **/tmp/output
+	rm -rf **/keys
 	@mkdir -p tmp/output
 	go test -v -race -coverprofile=tmp/output/coverage.out -covermode=atomic -coverpkg=./cmd/...,./internal/...,./ui/... ./...
 
@@ -31,7 +33,6 @@ test-coverage:
 test-reports:
 	@echo "📊 Generating comprehensive test reports..."
 	@mkdir -p tmp/output
-	rm -rf test-reports/*
 	@echo "Running tests with JSON output..."
 	go test -v -json -race -coverprofile=tmp/output/coverage.out -covermode=atomic -coverpkg=./cmd/...,./internal/...,./ui/... ./... | tee tmp/output/test-results.json
 	@echo "Generating HTML coverage report..."
@@ -42,16 +43,22 @@ test-reports:
 
 test-unit:
 	@echo "🔬 Running unit tests..."
+	rm -rf **/tmp/output
+	rm -rf **/keys
 	@mkdir -p tmp/output
 	go test -v -race -coverprofile=tmp/output/unit-coverage.out -covermode=atomic -coverpkg=./internal/... ./internal/...
 
 test-integration:
 	@echo "🔗 Running integration tests..."
+	rm -rf **/tmp/output
+	rm -rf **/keys
 	@mkdir -p tmp/output
 	go test -v -race -coverprofile=tmp/output/integration-coverage.out -covermode=atomic -coverpkg=./internal/...,./ui/... ./tests/integration/...
 
 test-e2e:
 	@echo "🎭 Running E2E tests..."
+	rm -rf **/tmp/output
+	rm -rf **/keys
 	@mkdir -p tmp/output
 	go test -v -race -timeout=5m ./tests/e2e/...
 

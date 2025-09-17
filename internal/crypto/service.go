@@ -13,10 +13,16 @@ type PEMProvider interface {
 	DecodeKeyFromPEM(pemBytes []byte, keyType devicekeys.KeyType) ([]byte, error)
 }
 
+type SecretsEncryptionKeyProvidor interface {
+	LoadOrCreateKey() ([]byte, error)
+	CreateSymmetricKey(keySize int) ([]byte, error)
+}
+
 // CryptoService handles encryption and decryption operations.
 type CryptoService struct {
-	key         []byte
-	PemProvider PEMProvider
+	key                          []byte
+	PemProvider                  PEMProvider
+	SecretsEncryptionKeyProvidor SecretsEncryptionKeyProvidor
 }
 
 type ConfigProvider interface {
@@ -24,16 +30,20 @@ type ConfigProvider interface {
 }
 
 // NewCryptoService creates a new CryptoService.
-func NewCryptoService(configProvider ConfigProvider, pemProvider PEMProvider) (*CryptoService, error) {
-	key, err := LoadOrCreateKey(configProvider)
+func NewCryptoService(configProvider ConfigProvider, pemProvider PEMProvider, secretsEncryptionKeyProvidor SecretsEncryptionKeyProvidor) (*CryptoService, error) {
+	key, err := secretsEncryptionKeyProvidor.LoadOrCreateKey()
 	if err != nil {
 		return nil, err
 	}
-	return &CryptoService{key: key, PemProvider: pemProvider}, nil
+	return &CryptoService{key: key,
+		PemProvider:                  pemProvider,
+		SecretsEncryptionKeyProvidor: secretsEncryptionKeyProvidor,
+	}, nil
 }
 
-func NewCryptoServiceDefault(configProvider ConfigProvider) (*CryptoService, error) {
-	return NewCryptoService(configProvider, &PemUtils{})
+func NewCryptoServiceDefault(configProvider ConfigProvider,
+	secretsEncryptionKeyProvidor SecretsEncryptionKeyProvidor) (*CryptoService, error) {
+	return NewCryptoService(configProvider, &PemUtils{}, secretsEncryptionKeyProvidor)
 }
 
 // GetKey returns the encryption key.
@@ -106,7 +116,7 @@ func (s *CryptoService) DecryptAsymmetric(ciphertext, nonce, privPEM []byte) ([]
 }
 
 func (s *CryptoService) GenerateKey() ([]byte, error) {
-	return CreateSymmetricKey(32)
+	return s.SecretsEncryptionKeyProvidor.CreateSymmetricKey(32)
 }
 
 func (s *CryptoService) ECDH(privateKey []byte, publicKey []byte) ([]byte, error) {

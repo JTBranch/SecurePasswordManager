@@ -3,6 +3,7 @@ package setup
 import (
 	"fmt"
 	config "go-password-manager/internal/config/runtimeconfig"
+	"go-password-manager/internal/config/secretkeymetadata"
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/storage"
 	"os"
@@ -78,7 +79,15 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 	if err != nil {
 		suite.t.Fatalf("Failed to create config service: %v", err)
 	}
-	cryptoService, err := crypto.NewCryptoServiceDefault(configService)
+	secretsKeyProvider, err := secretkeymetadata.NewSecretKeyMetadataFileService(buildCfg)
+	if err != nil {
+		suite.t.Fatalf("Failed to create secrets key provider: %v", err)
+	}
+	secretsEncryptionKeyManager, err := crypto.NewSecretsEncryptionKeyManager(configService, secretsKeyProvider)
+	if err != nil {
+		suite.t.Fatalf("Failed to create secrets encryption key manager: %v", err)
+	}
+	cryptoService, err := crypto.NewCryptoServiceDefault(configService, secretsEncryptionKeyManager)
 	if err != nil {
 		suite.t.Fatalf("Failed to create crypto service: %v", err)
 	}

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/sharing"
-	"strings"
+	"go-password-manager/internal/testHelpers/mocks"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type MockSharingProvider struct {
@@ -59,14 +61,15 @@ func (m *MockLoggerProvider) Error(message string) {
 	m.Errors = append(m.Errors, message)
 }
 
-func setupExportSecretsTest() (*sharing.SharingService, *MockSharingProvider, *MockSecretsService, domain.Secret) {
+func setupExportSecretsTest() (*sharing.SharingService, *MockSharingProvider, *mocks.SecretsProvider, domain.Secret) {
 	const (
 		secretValueEnc = "enc-value"
 		updatedAt      = "2025-08-27"
 	)
 	provider := &MockSharingProvider{}
-	mockSecrets := &MockSecretsService{Values: map[string]string{"test": "decrypted-value"}}
-	service := sharing.NewSharingService(provider, mockSecrets)
+	importProvider := &mocks.ImportProvider{}
+	mockSecrets := &mocks.SecretsProvider{}
+	service := sharing.NewSharingService(provider, importProvider, mockSecrets)
 	validSecret := domain.Secret{
 		SecretName:     "test",
 		Type:           domain.SecretTypeKeyValue,
@@ -81,24 +84,19 @@ func setupExportSecretsTest() (*sharing.SharingService, *MockSharingProvider, *M
 }
 
 func TestExportSecretsEncryptsAndBundlesCorrectly(t *testing.T) {
-	service, provider, _, validSecret := setupExportSecretsTest()
+	service, provider, mockSecrets, validSecret := setupExportSecretsTest()
 	secrets := []domain.Secret{validSecret}
 	recipientPubKey := []byte("recipient-key")
 	expiry := 60
 
+	mockSecrets.On("GetSecretValue", &validSecret).Return("decrypted-value", nil)
+
 	bundle, err := service.ExportSecrets(secrets, recipientPubKey, expiry)
-	if err != nil {
-		t.Fatalf("ExportSecrets returned error: %v", err)
-	}
-	if bundle == nil {
-		t.Fatalf("ExportSecrets returned nil bundle")
-	}
-	if !provider.EncryptCalled {
-		t.Errorf("EncryptAsymmetricPEM should be called")
-	}
-	if string(bundle.Payload.EncryptedSecrets) != "mock-ciphertext" {
-		t.Errorf("EncryptedSecrets should match mock ciphertext")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, bundle)
+	require.True(t, provider.EncryptCalled)
+	require.Equal(t, "mock-ciphertext", string(bundle.Payload.EncryptedSecrets))
+	mockSecrets.AssertExpectations(t)
 }
 
 func TestExportSecretsFailsWithEmptySecrets(t *testing.T) {
@@ -127,34 +125,63 @@ func TestExportSecretsFailsWithInvalidExpiry(t *testing.T) {
 
 func TestExportSecretsFailsWithMissingCurrentVersion(t *testing.T) {
 	service, _, mockSecrets, _ := setupExportSecretsTest()
-	mockSecrets.Values["bad"] = "any-value" // ensure GetSecretValue succeeds
 	badSecret := domain.Secret{
 		SecretName:     "bad",
 		Type:           domain.SecretTypeKeyValue,
-		CurrentVersion: 0,
+		CurrentVersion: 0, // No current version
 		Versions: []domain.SecretVersion{{
 			SecretValueEnc: "enc-value",
 			Version:        1,
 			UpdatedAt:      "2025-08-27",
 		}},
 	}
-	_, err := service.ExportSecrets([]domain.Secret{badSecret}, []byte("recipient-key"), 60)
-	if err == nil || err.Error() != "failed to map secrets for export: secret bad has no current version" {
-		t.Errorf("Expected error for missing current version, got: %v", err)
-	}
-	delete(mockSecrets.Values, "bad") // cleanup
+	secrets := []domain.Secret{badSecret}
+	mockSecrets.On("GetSecretValue", &badSecret).Return("any-value", nil)
+	_, err := service.ExportSecrets(secrets, []byte("recipient-key"), 60)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no current version")
+	mockSecrets.AssertExpectations(t)
 }
 
 func TestExportSecretsFailsWithGetSecretValueError(t *testing.T) {
 	service, _, mockSecrets, validSecret := setupExportSecretsTest()
-	mockSecrets.Values = map[string]string{} // simulate missing value
-	_, err := service.ExportSecrets([]domain.Secret{validSecret}, []byte("recipient-key"), 60)
-	if err == nil || err.Error() == "" || !contains(err.Error(), "failed to decrypt secret test") {
-		t.Errorf("Expected error for GetSecretValue failure, got: %v", err)
-	}
-	mockSecrets.Values = map[string]string{"test": "decrypted-value"} // restore
+	// Set up the mock to return an error for GetSecretValue
+	mockSecrets.On("GetSecretValue", &validSecret).Return("", fmt.Errorf("failed to decrypt secret test"))
+	secrets := []domain.Secret{validSecret}
+	_, err := service.ExportSecrets(secrets, []byte("recipient-key"), 60)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to decrypt secret test")
+	mockSecrets.AssertExpectations(t)
 }
 
-func contains(s, substr string) bool {
-	return strings.Contains(s, substr)
+func TestSharingServiceImportSecretsSuccess(t *testing.T) {
+	provider := &MockSharingProvider{}
+	importProvider := &mocks.ImportProvider{}
+	mockSecrets := &mocks.SecretsProvider{}
+	service := sharing.NewSharingService(provider, importProvider, mockSecrets)
+	bundle := &sharing.SecretExportBundle{} // Fill with test data as needed
+	recipientPrivKey := []byte("recipient-private-key")
+	recipientEphemeralPubKey := []byte("test-ephemeral-public-key")
+
+	expectedResult := &sharing.SecretImportResult{
+		Success:              true,
+		ImportedSecretsCount: 2,
+		VaultName:            "TestVault",
+		Error:                nil,
+	}
+
+	importProvider.On("ImportSecrets", bundle, recipientPrivKey, recipientEphemeralPubKey).Return(expectedResult, nil)
+
+	result, err := service.ImportSecrets(bundle, recipientPrivKey, recipientEphemeralPubKey)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.Success)
+	require.Equal(t, 2, result.ImportedSecretsCount)
+	require.Equal(t, "TestVault", result.VaultName)
+
+	require.Nil(t, result.Error, "Error field should be nil on success")
+	require.GreaterOrEqual(t, result.ImportedSecretsCount, 1, "Should import at least one secret")
+	require.NotEmpty(t, result.VaultName, "VaultName should not be empty")
+	importProvider.AssertExpectations(t)
+
 }

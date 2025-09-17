@@ -3,6 +3,7 @@ package e2e
 import (
 	buildconfig "go-password-manager/internal/config/buildconfig"
 	config "go-password-manager/internal/config/runtimeconfig"
+	"go-password-manager/internal/config/secretkeymetadata"
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/service"
@@ -31,7 +32,13 @@ func testCreateEditDeleteWorkflow(reporter *reporting.TestWrapper) {
 	configService, err := config.NewConfigService(buildCfg)
 	require.NoError(t, err, "Failed to create config service")
 
-	cryptoService, err := crypto.NewCryptoServiceDefault(configService)
+	secretKeyMetadataService, err := secretkeymetadata.NewSecretKeyMetadataFileService(buildCfg)
+	require.NoError(t, err, "Failed to create secret key metadata service")
+
+	secretsKeyManager, err := crypto.NewSecretsEncryptionKeyManager(configService, secretKeyMetadataService)
+	require.NoError(t, err, "Failed to create secrets key manager")
+
+	cryptoService, err := crypto.NewCryptoServiceDefault(configService, secretsKeyManager)
 	require.NoError(t, err, "Failed to create crypto service")
 
 	secretsPath, err := buildCfg.GetSecretsFilePath()
@@ -45,7 +52,7 @@ func testCreateEditDeleteWorkflow(reporter *reporting.TestWrapper) {
 	secretValue := testdata.TestSecrets.Simple.Value
 
 	reporter.LogStep("Creating a new secret", map[string]interface{}{"secretName": secretName})
-	err = secretsService.SaveNewSecret(secretName, secretValue)
+	err = secretsService.SaveOrUpdateSecret(secretName, secretValue)
 	require.NoError(t, err, "Failed to create secret")
 
 	// Test 2: Load and verify secret
@@ -137,7 +144,15 @@ func TestErrorHandlingE2E(t *testing.T) {
 		configService, err := config.NewConfigService(buildCfg)
 		require.NoError(t, err, "Failed to create config service")
 
-		cryptoService, err := crypto.NewCryptoServiceDefault(configService)
+		secretKeyMetadataService, err := secretkeymetadata.NewSecretKeyMetadataFileService(buildCfg)
+		require.NoError(t, err, "Failed to create secret key metadata service")
+
+		secretsKeyManager, err := crypto.NewSecretsEncryptionKeyManager(configService, secretKeyMetadataService)
+		if err != nil {
+			t.Fatalf("Failed to create secrets encryption key manager: %v", err)
+		}
+
+		cryptoService, err := crypto.NewCryptoServiceDefault(configService, secretsKeyManager)
 		require.NoError(t, err, "Failed to create crypto service")
 
 		secretsPath, err := buildCfg.GetSecretsFilePath()

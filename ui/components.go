@@ -3,6 +3,8 @@ package ui
 import (
 	buildconfig "go-password-manager/internal/config/buildconfig"
 	config "go-password-manager/internal/config/runtimeconfig"
+	"go-password-manager/internal/config/secretkeymetadata"
+
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/logger"
@@ -27,7 +29,15 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to create config service: %v", err)
 	}
-	cryptoService, err := crypto.NewCryptoServiceDefault(configService)
+	secretsKeymetadataProvider, err := secretkeymetadata.NewSecretKeyMetadataFileService(buildCfg)
+	if err != nil {
+		log.Fatalf("Failed to create secrets key metadata provider: %v", err)
+	}
+	secretsEncryptionKeyManager, err := crypto.NewSecretsEncryptionKeyManager(configService, secretsKeymetadataProvider)
+	if err != nil {
+		log.Fatalf("Failed to create secrets encryption key manager: %v", err)
+	}
+	cryptoService, err := crypto.NewCryptoServiceDefault(configService, secretsEncryptionKeyManager)
 	if err != nil {
 		log.Fatalf("Failed to create crypto service: %v", err)
 	}

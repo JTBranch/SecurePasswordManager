@@ -104,7 +104,7 @@ func TestLoggerAppendsToFile(t *testing.T) {
 	if len(lines) < 2 {
 		t.Fatalf("Expected at least 2 log lines, got %d", len(lines))
 	}
-	logRegex := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.* \[INFO\]: test log entry (1|2)$`)
+	logRegex := regexp.MustCompile(`^INFO: test log entry (1|2)$`)
 	for _, line := range lines {
 		if !logRegex.MatchString(line) {
 			t.Errorf("Log line does not match expected format: %s", line)

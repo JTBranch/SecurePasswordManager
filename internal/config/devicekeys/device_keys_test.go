@@ -48,8 +48,7 @@ func TestSaveDeviceKeys(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 
 	provider := &mockBuildConfigProvider{filePath: tmpFile.Name()}
-	svc, err := devicekeys.NewDeviceKeyFileService(provider)
-	assert.NoError(t, err, "failed to create service")
+	svc := devicekeys.NewDeviceKeyFileService(provider)
 
 	config := testDeviceKeyConfig()
 
@@ -84,8 +83,7 @@ func TestLoadDeviceKeys(t *testing.T) {
 	assert.NoError(t, err, "failed to write file")
 
 	provider := &mockBuildConfigProvider{filePath: tmpFile.Name()}
-	svc, err := devicekeys.NewDeviceKeyFileService(provider)
-	assert.NoError(t, err, "failed to create service")
+	svc := devicekeys.NewDeviceKeyFileService(provider)
 
 	loaded, err := svc.LoadDeviceKeys()
 	assert.NoError(t, err, "LoadDeviceKeys failed")
@@ -107,10 +105,14 @@ func TestLoadDeviceKeysFileDoesNotExist(t *testing.T) {
 	os.Remove(filePath) // Ensure file does not exist
 
 	provider := &mockBuildConfigProvider{filePath: filePath}
-	svc, err := devicekeys.NewDeviceKeyFileService(provider)
-	assert.NoError(t, err, "failed to create service")
+	svc := devicekeys.NewDeviceKeyFileService(provider)
 
 	config, err := svc.LoadDeviceKeys()
-	assert.Error(t, err, "expected error when file does not exist")
-	assert.Nil(t, config, "config should be nil when file does not exist")
+	assert.NoError(t, err, "should not error when file does not exist; should create default config")
+	assert.NotNil(t, config, "config should not be nil when file does not exist")
+	assert.Nil(t, config.CurrentKey, "CurrentKey should be nil in default config")
+	assert.Equal(t, 0, len(config.Archived), "Archived should be empty in default config")
+	// Confirm file was created
+	_, statErr := os.Stat(filePath)
+	assert.NoError(t, statErr, "file should be created if it did not exist")
 }

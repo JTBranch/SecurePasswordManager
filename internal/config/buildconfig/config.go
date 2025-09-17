@@ -56,9 +56,10 @@ type EncryptionConfig struct {
 }
 
 type StorageConfig struct {
-	SecretsFile    string `yaml:"secrets_file"`
-	ConfigFile     string `yaml:"config_file"`
-	DeviceKeysFile string `yaml:"device_keys_file"`
+	SecretsFile            string `yaml:"secrets_file"`
+	ConfigFile             string `yaml:"config_file"`
+	DeviceKeysFile         string `yaml:"device_keys_file"`
+	SecretsKeyMetadataFile string `yaml:"secrets_key_metadata_file"`
 }
 
 type DevelopmentConfig struct {
@@ -394,4 +395,8 @@ func (c *Config) GetAppName() string {
 
 func (c *Config) GetDeviceKeysFilePath() string {
 	return c.Storage.DeviceKeysFile
+}
+
+func (c *Config) GetSecretKeyMetadataFilePath() string {
+	return c.Storage.SecretsKeyMetadataFile
 }

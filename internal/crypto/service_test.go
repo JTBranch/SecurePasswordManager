@@ -41,10 +41,12 @@ func TestNewCryptoServiceWithMockConfig(t *testing.T) {
 	// Arrange: Create a mock config provider
 
 	mockProvider := &MockConfigProvider{}
+	mockSecretsKeyProvidor := &mocks.SecretsEncryptionKeyProvidor{}
 	mockProvider.On("GetKeyUUID").Return("test-uuid-12345")
+	mockSecretsKeyProvidor.On("LoadOrCreateKey", mock.Anything).Return([]byte("mock-key"), nil)
 
 	// Act: Create the CryptoService with the mock provider
-	cryptoService, err := crypto.NewCryptoService(mockProvider, &mocks.PEMProvider{})
+	cryptoService, err := crypto.NewCryptoService(mockProvider, &mocks.PEMProvider{}, mockSecretsKeyProvidor)
 
 	// Assert: Check that the service was created successfully
 	assert.NoError(t, err, "NewCryptoService should not return an error with a valid mock provider")

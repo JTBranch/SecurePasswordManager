@@ -7,6 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.11.1
+	github.com/zalando/go-keyring v0.2.6
 	go.uber.org/zap v1.26.0
 	golang.org/x/crypto v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -41,7 +42,6 @@ require (
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/yuin/goldmark v1.7.8 // indirect
-	github.com/zalando/go-keyring v0.2.6 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/net v0.42.0 // indirect

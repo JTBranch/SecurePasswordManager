@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/logger"
+	"time"
 )
 
 type ExportProvider interface {
@@ -16,6 +17,11 @@ type ExportProvider interface {
 
 type SecretsProvider interface {
 	GetSecretValue(secret *domain.Secret) (string, error)
+	SaveOrUpdateSecrets(secrets []domain.Secret) error
+}
+
+type ImportProvider interface {
+	ImportSecrets(bundle *SecretExportBundle, recipientPrivateKey []byte, recipientEphemeralPubKey []byte) (*SecretImportResult, error)
 }
 
 type LoggerProvider interface {
@@ -25,12 +31,14 @@ type LoggerProvider interface {
 
 type SharingService struct {
 	exportProvidor  ExportProvider
+	importProvidor  ImportProvider
 	secretsProvider SecretsProvider
 }
 
-func NewSharingService(exportProvidor ExportProvider, secretsProvider SecretsProvider) *SharingService {
+func NewSharingService(exportProvidor ExportProvider, importProvidor ImportProvider, secretsProvider SecretsProvider) *SharingService {
 	return &SharingService{
 		exportProvidor:  exportProvidor,
+		importProvidor:  importProvidor,
 		secretsProvider: secretsProvider,
 	}
 }
@@ -78,9 +86,30 @@ func (s *SharingService) ExportSecrets(secrets []domain.Secret, recipientPubKey 
 }
 
 // ImportSecrets imports a bundle and returns the result.
-func (s *SharingService) ImportSecrets(bundle *SecretExportBundle, recipientPrivKey []byte) (*SecretImportResult, error) {
-	// implementation
-	return nil, nil
+func (s *SharingService) ImportSecrets(bundle *SecretExportBundle, recipientPrivateKey []byte, recipientEphemeralPubKey []byte) (*SecretImportResult, error) {
+
+	logger.Info("Beginning import of secrets")
+
+	result, err := s.importProvidor.ImportSecrets(bundle, recipientPrivateKey, recipientEphemeralPubKey)
+
+	entry := SharingLogEntry{
+		Action:  "import",
+		Status:  "failed",
+		Details: "",
+	}
+	if result != nil {
+		entry.Timestamp = time.Now().Unix()
+		entry.BundleID = bundle.Payload.ID
+		entry.FileName = bundle.Payload.Name
+		entry.PeerInfo = bundle.Payload.SenderInfo
+		entry.Status = "success"
+	}
+	if err != nil {
+		entry.Status = "failed"
+		entry.Details = err.Error()
+	}
+	s.LogEvent(entry)
+	return result, nil
 }
 
 // LogEvent records an import/export event.

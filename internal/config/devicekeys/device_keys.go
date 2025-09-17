@@ -48,12 +48,12 @@ type DeviceKeyFileService struct {
 	filePath string
 }
 
-func NewDeviceKeyFileService(buildCfg BuildConfigProvider) (*DeviceKeyFileService, error) {
+func NewDeviceKeyFileService(buildCfg BuildConfigProvider) *DeviceKeyFileService {
 	filePath := buildCfg.GetDeviceKeysFilePath()
 	return &DeviceKeyFileService{
 		buildCfg: buildCfg,
 		filePath: filePath,
-	}, nil
+	}
 }
 
 func (svc *DeviceKeyFileService) SaveDeviceKeys(config *DeviceKeyConfig) error {
