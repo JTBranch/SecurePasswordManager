@@ -16,6 +16,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -46,9 +47,7 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 		// Create isolated test environment
 		testDir := filepath.Join(os.TempDir(), fmt.Sprintf("go-password-manager-e2e-%d", time.Now().UnixNano()))
 		err := os.MkdirAll(testDir, 0755)
-		if err != nil {
-			suite.t.Fatalf("Failed to create test directory: %v", err)
-		}
+		require.NoError(suite.t, err, "Failed to create test directory")
 		suite.testDataDir = testDir
 		suite.t.Logf("E2E test environment created at: %s", testDir)
 	} else {
@@ -60,11 +59,6 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 	os.Setenv("GO_PASSWORD_MANAGER_ENV", "e2e-test")
 	os.Setenv("TEST_DATA_DIR", suite.testDataDir)
 
-	// Reset global environment config to pick up test settings
-	if _, err := buildconfig.Load(); err != nil {
-		suite.t.Fatalf("Failed to load build configuration: %v", err)
-	}
-
 	// Create test application
 	suite.app = test.NewApp()
 	suite.Window = test.NewWindow(nil)
@@ -72,29 +66,17 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 
 	// Initialize services
 	buildCfg, err := buildconfig.Load()
-	if err != nil {
-		suite.t.Fatalf("Failed to load build config: %v", err)
-	}
+	require.NoError(suite.t, err, "Failed to load build config")
 	configService, err := config.NewConfigService(buildCfg)
-	if err != nil {
-		suite.t.Fatalf("Failed to create config service: %v", err)
-	}
+	require.NoError(suite.t, err, "Failed to create config service")
 	secretsKeyProvider, err := secretkeymetadata.NewSecretKeyMetadataFileService(buildCfg)
-	if err != nil {
-		suite.t.Fatalf("Failed to create secrets key provider: %v", err)
-	}
+	require.NoError(suite.t, err, "Failed to create secrets key provider")
 	secretsEncryptionKeyManager, err := crypto.NewSecretsEncryptionKeyManager(configService, secretsKeyProvider)
-	if err != nil {
-		suite.t.Fatalf("Failed to create secrets encryption key manager: %v", err)
-	}
+	require.NoError(suite.t, err, "Failed to create secrets encryption key manager")
 	cryptoService, err := crypto.NewCryptoServiceDefault(configService, secretsEncryptionKeyManager)
-	if err != nil {
-		suite.t.Fatalf("Failed to create crypto service: %v", err)
-	}
+	require.NoError(suite.t, err, "Failed to create crypto service")
 	secretsPath, err := buildCfg.GetSecretsFilePath()
-	if err != nil {
-		suite.t.Fatalf("Failed to get secrets file path: %v", err)
-	}
+	require.NoError(suite.t, err, "Failed to get secrets file path")
 	storageService := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "e2e-user")
 	suite.SecretsService = service.NewSecretsService(cryptoService, storageService)
 }
@@ -103,9 +85,6 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 func (suite *E2ETestSuite) SetTestDataDir(dataDir string) {
 	suite.testDataDir = dataDir
 	os.Setenv("TEST_DATA_DIR", dataDir)
-	if _, err := buildconfig.Load(); err != nil {
-		suite.t.Fatalf("Failed to load build configuration: %v", err)
-	}
 }
 
 // GetTestDataDir returns the test data directory path

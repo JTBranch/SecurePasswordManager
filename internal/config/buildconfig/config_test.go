@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoadDefaultConfig(t *testing.T) {
@@ -13,26 +14,13 @@ func TestLoadDefaultConfig(t *testing.T) {
 	defer os.Unsetenv("GO_PASSWORD_MANAGER_ENV")
 
 	config, err := Load()
-	if err != nil {
-		t.Fatalf("Failed to load config: %v", err)
-	}
+	require.NoError(t, err, "Failed to load config")
 
 	// Test default values
-	if config.Application.Name != "GoPasswordManager" {
-		t.Errorf("Expected app name 'GoPasswordManager', got '%s'", config.Application.Name)
-	}
-
-	if config.UI.Window.Width != 1600 {
-		t.Errorf("Expected window width 1600, got %d", config.UI.Window.Width)
-	}
-
-	if config.UI.Window.Height != 900 {
-		t.Errorf("Expected window height 900, got %d", config.UI.Window.Height)
-	}
-
-	if config.Security.Encryption.KeySize != 32 {
-		t.Errorf("Expected encryption key size 32, got %d", config.Security.Encryption.KeySize)
-	}
+	assert.Equal(t, "GoPasswordManager", config.Application.Name, "Expected app name 'GoPasswordManager'")
+	assert.Equal(t, 1600, config.UI.Window.Width, "Expected window width 1600")
+	assert.Equal(t, 900, config.UI.Window.Height, "Expected window height 900")
+	assert.Equal(t, 32, config.Security.Encryption.KeySize, "Expected encryption key size 32")
 }
 
 func TestEnvironmentOverrides(t *testing.T) {
@@ -58,22 +46,12 @@ func TestEnvironmentOverrides(t *testing.T) {
 	}
 
 	config, err := Load()
-	if err != nil {
-		t.Fatalf("Failed to load config: %v", err)
-	}
+	require.NoError(t, err, "Failed to load config")
 
 	// Test environment overrides
-	if config.Application.Name != "TestApp" {
-		t.Errorf("Expected app name 'TestApp', got '%s'", config.Application.Name)
-	}
-
-	if config.UI.Window.Width != 1200 {
-		t.Errorf("Expected window width 1200, got %d", config.UI.Window.Width)
-	}
-
-	if config.Logging.Debug != false {
-		t.Errorf("Expected debug logging false, got %v", config.Logging.Debug)
-	}
+	assert.Equal(t, "TestApp", config.Application.Name, "Expected app name 'TestApp'")
+	assert.Equal(t, 1200, config.UI.Window.Width, "Expected window width 1200")
+	assert.Equal(t, false, config.Logging.Debug, "Expected debug logging false")
 }
 
 func TestEnvironmentDetection(t *testing.T) {
@@ -99,17 +77,9 @@ func TestEnvironmentDetection(t *testing.T) {
 			},
 		}
 
-		if config.IsDevelopment() != tt.isDev {
-			t.Errorf("Environment %s: expected IsDevelopment() %v, got %v", tt.env, tt.isDev, config.IsDevelopment())
-		}
-
-		if config.IsProduction() != tt.isProd {
-			t.Errorf("Environment %s: expected IsProduction() %v, got %v", tt.env, tt.isProd, config.IsProduction())
-		}
-
-		if config.IsTest() != tt.isTest {
-			t.Errorf("Environment %s: expected IsTest() %v, got %v", tt.env, tt.isTest, config.IsTest())
-		}
+		assert.Equal(t, tt.isDev, config.IsDevelopment(), "Environment %s: expected IsDevelopment() %v", tt.env, tt.isDev)
+		assert.Equal(t, tt.isProd, config.IsProduction(), "Environment %s: expected IsProduction() %v", tt.env, tt.isProd)
+		assert.Equal(t, tt.isTest, config.IsTest(), "Environment %s: expected IsTest() %v", tt.env, tt.isTest)
 	}
 }
 

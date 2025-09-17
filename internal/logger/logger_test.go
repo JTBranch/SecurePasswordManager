@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type MockLoggerConfig struct {
@@ -63,18 +65,18 @@ func TestGetLogDir(t *testing.T) {
 		cfg := &MockLoggerConfig{appName: "GoPasswordManagerTest", useUserConfigDir: false}
 		logDir, err := GetLogDir(cfg.GetAppName(), cfg)
 		if err != nil {
-			t.Fatalf("GetLogDir returned error: %v", err)
+			require.NoError(t, err, "GetLogDir returned error")
 		}
 		if logDir == "" {
-			t.Fatalf("GetLogDir returned empty path")
+			require.NotEmpty(t, logDir, "GetLogDir returned empty path")
 		}
 		// Check directory exists
 		info, err := os.Stat(logDir)
 		if err != nil {
-			t.Fatalf("Log directory does not exist: %v", err)
+			require.NoError(t, err, "Log directory does not exist")
 		}
 		if !info.IsDir() {
-			t.Fatalf("Log path is not a directory: %s", logDir)
+			require.DirExists(t, logDir, "Log path is not a directory")
 		}
 		expected := filepath.Join("..", "..", "tmp", "output")
 		if logDir != expected {
@@ -90,19 +92,19 @@ func TestLoggerAppendsToFile(t *testing.T) {
 	_ = os.Remove(logFile) // Ensure clean file
 	f, err := os.Create(logFile)
 	if err != nil {
-		t.Fatalf("Failed to create log file: %v", err)
+		require.NoError(t, err, "Failed to create log file")
 	}
 	f.Close()
 	Info("test log entry 1")
 	Info("test log entry 2")
 	data, err := os.ReadFile(logFile)
 	if err != nil {
-		t.Fatalf("Failed to read log file: %v", err)
+		require.NoError(t, err, "Failed to read log file")
 	}
 	content := string(data)
 	lines := strings.Split(strings.TrimSpace(content), "\n")
 	if len(lines) < 2 {
-		t.Fatalf("Expected at least 2 log lines, got %d", len(lines))
+		require.GreaterOrEqual(t, len(lines), 2, "Expected at least 2 log lines")
 	}
 	logRegex := regexp.MustCompile(`^INFO: test log entry (1|2)$`)
 	for _, line := range lines {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const errNonceNotNil = "Nonce should not be nil"
@@ -113,7 +114,7 @@ const (
 func TestGenerateX25519KeyPair(t *testing.T) {
 	pub, _, err := crypto.GenerateX25519KeyPair()
 	if err != nil {
-		t.Fatalf(errKeyGen, err)
+		require.NoError(t, err, errKeyGen)
 	}
 	if len(pub) != 32 {
 		t.Errorf("Expected 32-byte public key, got %d", len(pub))
@@ -123,12 +124,12 @@ func TestGenerateX25519KeyPair(t *testing.T) {
 func TestEncryptDecryptAsymmetricSuccess(t *testing.T) {
 	pub, priv, err := crypto.GenerateX25519KeyPair()
 	if err != nil {
-		t.Fatalf(errKeyGen, err)
+		require.NoError(t, err, errKeyGen)
 	}
 	plaintext := []byte("hello asymmetric world")
 	result, err := crypto.EncryptAsymmetric(plaintext, pub)
 	if err != nil {
-		t.Fatalf(errEncrypt, err)
+		require.NoError(t, err, errEncrypt)
 	}
 	// Check all fields
 	if len(result.Ciphertext) == 0 {
@@ -144,7 +145,7 @@ func TestEncryptDecryptAsymmetricSuccess(t *testing.T) {
 	// Decrypt using priv
 	decrypted, err := crypto.DecryptAsymmetric(fullCipher, result.Nonce, priv)
 	if err != nil {
-		t.Fatalf(errDecrypt, err)
+		require.NoError(t, err, errDecrypt)
 	}
 	if string(decrypted) != string(plaintext) {
 		t.Errorf("Decrypted text does not match original")
@@ -154,12 +155,12 @@ func TestEncryptDecryptAsymmetricSuccess(t *testing.T) {
 func TestEncryptDecryptAsymmetricEmptyPlaintext(t *testing.T) {
 	pub, priv, err := crypto.GenerateX25519KeyPair()
 	if err != nil {
-		t.Fatalf(errKeyGen, err)
+		require.NoError(t, err, errKeyGen)
 	}
 	plaintext := []byte("")
 	result, err := crypto.EncryptAsymmetric(plaintext, pub)
 	if err != nil {
-		t.Fatalf(errEncrypt, err)
+		require.NoError(t, err, errEncrypt)
 	}
 	if len(result.Ciphertext) == 0 {
 		t.Errorf("Ciphertext should not be empty for empty plaintext")
@@ -167,7 +168,7 @@ func TestEncryptDecryptAsymmetricEmptyPlaintext(t *testing.T) {
 	fullCipher := append(result.EphemeralPublicKey, result.Ciphertext...)
 	decrypted, err := crypto.DecryptAsymmetric(fullCipher, result.Nonce, priv)
 	if err != nil {
-		t.Fatalf(errDecrypt, err)
+		require.NoError(t, err, errDecrypt)
 	}
 	if string(decrypted) != string(plaintext) {
 		t.Errorf("Decrypted text does not match original (empty)")
@@ -177,16 +178,16 @@ func TestEncryptDecryptAsymmetricEmptyPlaintext(t *testing.T) {
 func TestDecryptAsymmetricWrongKey(t *testing.T) {
 	pub, _, err := crypto.GenerateX25519KeyPair()
 	if err != nil {
-		t.Fatalf(errKeyGen, err)
+		require.NoError(t, err, errKeyGen)
 	}
 	_, otherPriv, err := crypto.GenerateX25519KeyPair()
 	if err != nil {
-		t.Fatalf(errKeyGen, err)
+		require.NoError(t, err, errKeyGen)
 	}
 	plaintext := []byte("should not decrypt")
 	result, err := crypto.EncryptAsymmetric(plaintext, pub)
 	if err != nil {
-		t.Fatalf(errEncrypt, err)
+		require.NoError(t, err, errEncrypt)
 	}
 	// Try to decrypt with wrong private key
 	encrypted := append(result.Nonce, result.Ciphertext...)
@@ -200,7 +201,7 @@ func TestDecryptAsymmetricWrongKey(t *testing.T) {
 func TestDecryptAsymmetricInvalidCiphertext(t *testing.T) {
 	_, priv, err := crypto.GenerateX25519KeyPair()
 	if err != nil {
-		t.Fatalf(errKeyGen, err)
+		require.NoError(t, err, errKeyGen)
 	}
 	// Too short ciphertext
 	_, err = crypto.DecryptAsymmetric([]byte("short"), []byte("shortnonce"), priv)

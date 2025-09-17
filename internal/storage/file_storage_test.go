@@ -7,6 +7,8 @@ import (
 	"go-password-manager/tests/helpers"
 	os "os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -33,18 +35,18 @@ func TestSecretStorage(t *testing.T) {
 		// Simulate saving a secret
 		err := storage.WriteSecrets(secretsData)
 		if err != nil {
-			t.Fatalf("Save failed: %v", err)
+			require.NoError(t, err, "Save failed")
 		}
 
 		savedData, err := os.ReadFile(TestFileStoragePath)
 		if err != nil {
-			t.Fatalf("Failed to read saved data: %v", err)
+			require.NoError(t, err, "Failed to read saved data")
 		}
 
 		var savedDataObj domain.SecretsFile
 		err = json.Unmarshal(savedData, &savedDataObj)
 		if err != nil {
-			t.Fatalf("Failed to unmarshal saved data: %v", err)
+			require.NoError(t, err, "Failed to unmarshal saved data")
 		}
 
 		tc.Assert.NotNil(savedDataObj.LastUpdated)
