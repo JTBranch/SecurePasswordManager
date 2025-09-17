@@ -22,13 +22,13 @@ type SecretsKeyMetadataProvider interface {
 type SecretsEncryptionKeyManager struct {
 	configProvider             ConfigProvider
 	keyringProvider            KeyringProvider
-	secretsKeyMetadataProvidor SecretsKeyMetadataProvider
+	secretsKeyMetadataProvider SecretsKeyMetadataProvider
 	keyUUID                    string
 	keySize                    int
 }
 
 func NewSecretsEncryptionKeyManager(configProvider ConfigProvider,
-	secretsKeyMetadataProvidor SecretsKeyMetadataProvider) (*SecretsEncryptionKeyManager, error) {
+	secretsKeyMetadataProvider SecretsKeyMetadataProvider) (*SecretsEncryptionKeyManager, error) {
 	keyUUID := configProvider.GetKeyUUID()
 	buildCfg, err := buildconfig.Load()
 	if err != nil {
@@ -36,8 +36,8 @@ func NewSecretsEncryptionKeyManager(configProvider ConfigProvider,
 	}
 	return &SecretsEncryptionKeyManager{
 		configProvider:             configProvider,
-		keyringProvider:            &DefaultKeyringProvider{},
-		secretsKeyMetadataProvidor: secretsKeyMetadataProvidor,
+		keyringProvider:            &DefaultkeyringProvider{},
+		secretsKeyMetadataProvider: secretsKeyMetadataProvider,
 		keyUUID:                    keyUUID,
 		keySize:                    buildCfg.Security.Encryption.KeySize,
 	}, nil
@@ -78,7 +78,7 @@ func (m *SecretsEncryptionKeyManager) createKey() ([]byte, error) {
 	createdKey, err := m.CreateSymmetricKey(keySize)
 	m.keyringProvider.Set(KeyringSecretsEncryption, m.keyUUID, string(createdKey))
 	now := time.Now()
-	m.secretsKeyMetadataProvidor.UpdateCurrentKey(secretkeymetadata.SecretsEncryptionKeyMetadata{
+	m.secretsKeyMetadataProvider.UpdateCurrentKey(secretkeymetadata.SecretsEncryptionKeyMetadata{
 		UUID:         m.keyUUID,
 		DateCreated:  now,
 		DateModified: now,

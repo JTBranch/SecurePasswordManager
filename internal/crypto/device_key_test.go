@@ -34,10 +34,10 @@ var testDeviceKeyConfig = &devicekeys.DeviceKeyConfig{
 }
 
 func TestGenerateEncryptionDeviceKey(t *testing.T) {
-	mockKeyPairGenerator := &mocks.CryptoProvider{}
+	mockKeyPairGenerator := &mocks.KeyPairGenerator{}
 	mockKeyringProvider := &mocks.MockKeyringProvider{}
 	mockPEMProvider := &mocks.PEMProvider{}
-	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvidor{}
+	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvider{}
 
 	expectedPEM := []byte("MOCK PEM")
 	mockPEMProvider.On("EncodeKeyToPEM", mock.Anything, devicekeys.KeyTypeX25519Private).Return(expectedPEM, nil)
@@ -68,10 +68,10 @@ func TestGenerateEncryptionDeviceKey(t *testing.T) {
 }
 
 func TestGenerateSigningDeviceKey(t *testing.T) {
-	mockKeyPairGenerator := &mocks.CryptoProvider{}
+	mockKeyPairGenerator := &mocks.KeyPairGenerator{}
 	mockKeyringProvider := &mocks.MockKeyringProvider{}
 	mockPEMProvider := &mocks.PEMProvider{}
-	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvidor{}
+	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvider{}
 
 	expectedPEM := []byte("MOCK PEM")
 	mockPEMProvider.On("EncodeKeyToPEM", mock.Anything, devicekeys.KeyTypeX25519Private).Return(expectedPEM, nil)
@@ -102,10 +102,10 @@ func TestGenerateSigningDeviceKey(t *testing.T) {
 }
 
 func TestGetDeviceKeyReturnsWhenExists(t *testing.T) {
-	mockKeyPairGenerator := &mocks.CryptoProvider{}
+	mockKeyPairGenerator := &mocks.KeyPairGenerator{}
 	mockKeyringProvider := &mocks.MockKeyringProvider{}
 	mockPEMProvider := &mocks.PEMProvider{}
-	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvidor{}
+	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvider{}
 
 	// Simulate key exists in keyring
 	existingPEM := []byte("EXISTING PEM")
@@ -129,10 +129,10 @@ func TestGetDeviceKeyReturnsWhenExists(t *testing.T) {
 }
 
 func TestGetDeviceKeyCreatesNewWhenNotExists(t *testing.T) {
-	mockKeyPairGenerator := &mocks.CryptoProvider{}
+	mockKeyPairGenerator := &mocks.KeyPairGenerator{}
 	mockKeyringProvider := &mocks.MockKeyringProvider{}
 	mockPEMProvider := &mocks.PEMProvider{}
-	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvidor{}
+	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvider{}
 
 	// Simulate key not found in keyring
 	mockKeyringProvider.On("Get", "GoPasswordManager-signing", mock.Anything).Return("", assert.AnError)
@@ -164,10 +164,10 @@ func TestGetDeviceKeyCreatesNewWhenNotExists(t *testing.T) {
 }
 
 func TestDeleteEncryptionDeviceKey(t *testing.T) {
-	mockKeyPairGenerator := &mocks.CryptoProvider{}
+	mockKeyPairGenerator := &mocks.KeyPairGenerator{}
 	mockKeyringProvider := &mocks.MockKeyringProvider{}
 	mockPEMProvider := &mocks.PEMProvider{}
-	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvidor{}
+	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvider{}
 
 	mockKeyringProvider.On("Delete", "GoPasswordManager-encryption", mock.Anything).Return(nil)
 	mockDeviceKeyProvider.On("LoadDeviceKeys").Return(testDeviceKeyConfig, nil)
@@ -182,10 +182,10 @@ func TestDeleteEncryptionDeviceKey(t *testing.T) {
 }
 
 func TestDeleteSigningDeviceKey(t *testing.T) {
-	mockKeyPairGenerator := &mocks.CryptoProvider{}
+	mockKeyPairGenerator := &mocks.KeyPairGenerator{}
 	mockKeyringProvider := &mocks.MockKeyringProvider{}
 	mockPEMProvider := &mocks.PEMProvider{}
-	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvidor{}
+	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvider{}
 
 	mockKeyringProvider.On("Delete", "GoPasswordManager-signing", mock.Anything).Return(nil)
 	mockDeviceKeyProvider.On("LoadDeviceKeys").Return(testDeviceKeyConfig, nil)
@@ -200,10 +200,10 @@ func TestDeleteSigningDeviceKey(t *testing.T) {
 }
 
 func TestRotateEncryptionDeviceKey(t *testing.T) {
-	mockKeyPairGenerator := &mocks.CryptoProvider{}
+	mockKeyPairGenerator := &mocks.KeyPairGenerator{}
 	mockKeyringProvider := &mocks.MockKeyringProvider{}
 	mockPEMProvider := &mocks.PEMProvider{}
-	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvidor{}
+	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvider{}
 
 	// Simulate existing key in keyring
 	existingPEM := []byte("EXISTING PEM")
@@ -246,10 +246,10 @@ func TestRotateEncryptionDeviceKey(t *testing.T) {
 }
 
 func TestRotateSigningDeviceKey(t *testing.T) {
-	mockKeyPairGenerator := &mocks.CryptoProvider{}
+	mockKeyPairGenerator := &mocks.KeyPairGenerator{}
 	mockKeyringProvider := &mocks.MockKeyringProvider{}
 	mockPEMProvider := &mocks.PEMProvider{}
-	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvidor{}
+	mockDeviceKeyProvider := &mocks.DeviceKeyFileProvider{}
 
 	// Simulate existing key in keyring
 	existingPEM := []byte("EXISTING PEM")

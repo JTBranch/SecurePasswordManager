@@ -5,26 +5,116 @@ import (
 	"crypto/cipher"
 	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/sha256"
 	"fmt"
 	"go-password-manager/internal/logger"
 	"io"
 
 	"golang.org/x/crypto/curve25519"
-	"golang.org/x/crypto/hkdf"
 )
 
-// AsymmetricEncryptResult holds the result of asymmetric encryption
-type AsymmetricEncryptResult struct {
-	Ciphertext         []byte
-	Nonce              []byte
-	EphemeralPublicKey []byte
+// Legacy asymmetric encryption helpers removed (unused after key box v2).
+
+const (
+	keyBoxVersion      byte = 2
+	x25519PubSize           = 32
+	errSharedSecretFmt      = "failed to derive shared secret: %w"
+)
+
+// WrapKeyBox encrypts a symmetric key using X25519 + AES-GCM and returns a single box:
+// version(1) | ephemeralPub(32) | nonce(12) | ciphertext(var)
+func WrapKeyBox(symKey []byte, recipientPub []byte, aad []byte) ([]byte, error) {
+	// Generate ephemeral key pair
+	ephPriv := make([]byte, curve25519.ScalarSize)
+	if _, err := rand.Read(ephPriv); err != nil {
+		return nil, fmt.Errorf("failed to gen ephemeral priv: %w", err)
+	}
+	ephPub, err := curve25519.X25519(ephPriv, curve25519.Basepoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to gen ephemeral pub: %w", err)
+	}
+	// Derive shared secret
+	shared, err := curve25519.X25519(ephPriv, recipientPub)
+	if err != nil {
+		return nil, fmt.Errorf(errSharedSecretFmt, err)
+	}
+	// zero ephemeral priv ASAP
+	Zeroize(ephPriv)
+	block, err := aes.NewCipher(shared)
+	if err != nil {
+		Zeroize(shared)
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		Zeroize(shared)
+		return nil, err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		Zeroize(shared)
+		return nil, err
+	}
+	ct := gcm.Seal(nil, nonce, symKey, aad)
+	// wipe shared secret now that ciphertext derived
+	Zeroize(shared)
+	box := make([]byte, 1+len(ephPub)+len(nonce)+len(ct))
+	off := 0
+	box[off] = keyBoxVersion
+	off++
+	copy(box[off:], ephPub)
+	off += len(ephPub)
+	copy(box[off:], nonce)
+	off += len(nonce)
+	copy(box[off:], ct)
+	return box, nil
 }
 
-var encryptionKey []byte
+// UnwrapKeyBox decrypts a box produced by WrapKeyBox using recipient private key.
+func UnwrapKeyBox(box []byte, recipientPriv []byte, aad []byte) ([]byte, error) {
+	if len(box) < 1+x25519PubSize+12 { // minimal size check
+		return nil, fmt.Errorf("key box too short")
+	}
+	ver := box[0]
+	if ver != keyBoxVersion {
+		return nil, fmt.Errorf("unsupported key box version %d", ver)
+	}
+	off := 1
+	ephPub := box[off : off+x25519PubSize]
+	off += x25519PubSize
+	// Derive shared
+	shared, err := curve25519.X25519(recipientPriv, ephPub)
+	if err != nil {
+		return nil, fmt.Errorf(errSharedSecretFmt, err)
+	}
+	block, err := aes.NewCipher(shared)
+	if err != nil {
+		Zeroize(shared)
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		Zeroize(shared)
+		return nil, err
+	}
+	nonceSize := gcm.NonceSize()
+	if len(box) < 1+x25519PubSize+nonceSize+1 {
+		Zeroize(shared)
+		return nil, fmt.Errorf("key box malformed")
+	}
+	nonce := box[off : off+nonceSize]
+	off += nonceSize
+	ct := box[off:]
+	pt, err := gcm.Open(nil, nonce, ct, aad)
+	// zero shared regardless of success
+	Zeroize(shared)
+	if err != nil {
+		return nil, err
+	}
+	return pt, nil
+}
 
 // Encrypt encrypts the plaintext using the provided key.
-func EncryptSymmetric(plaintext []byte, key []byte) ([]byte, []byte, error) {
+func EncryptSymmetric(plaintext []byte, key []byte, aad []byte) ([]byte, []byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, nil, err
@@ -40,13 +130,12 @@ func EncryptSymmetric(plaintext []byte, key []byte) ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 
-	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
-	encryptionKey = key
+	ciphertext := gcm.Seal(nil, nonce, plaintext, aad)
 	return ciphertext, nonce, nil
 }
 
 // Decrypt decrypts the ciphertext using the provided key.
-func DecryptSymmetric(ciphertext, nonce, key []byte) ([]byte, error) {
+func DecryptSymmetric(ciphertext, nonce, key []byte, aad []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 
 	if err != nil {
@@ -60,71 +149,11 @@ func DecryptSymmetric(ciphertext, nonce, key []byte) ([]byte, error) {
 
 	logger.Debug(fmt.Sprintf("nonce key set as %x", nonce))
 
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, aad)
 	if err != nil {
 		return nil, err
 	}
 
-	return plaintext, nil
-}
-
-func EncryptAsymmetric(plaintext []byte, pubKey []byte) (AsymmetricEncryptResult, error) {
-	var result AsymmetricEncryptResult
-	ephemeralPriv := make([]byte, curve25519.ScalarSize)
-	_, err := rand.Read(ephemeralPriv)
-	if err != nil {
-		return AsymmetricEncryptResult{}, fmt.Errorf("failed to generate ephemeral private key: %w", err)
-	}
-	ephemeralPub, err := curve25519.X25519(ephemeralPriv, curve25519.Basepoint)
-	if err != nil {
-		return AsymmetricEncryptResult{}, fmt.Errorf("failed to generate ephemeral public key: %w", err)
-	}
-	sharedSecret, err := curve25519.X25519(ephemeralPriv, pubKey)
-	if err != nil {
-		return AsymmetricEncryptResult{}, fmt.Errorf("failed to derive shared secret: %w", err)
-	}
-	block, err := aes.NewCipher(sharedSecret)
-	if err != nil {
-		return AsymmetricEncryptResult{}, err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return AsymmetricEncryptResult{}, err
-	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return AsymmetricEncryptResult{}, err
-	}
-	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
-	result.Ciphertext = ciphertext
-	result.Nonce = nonce
-	result.EphemeralPublicKey = ephemeralPub
-	return result, nil
-}
-
-func DecryptAsymmetric(ciphertext, nonce, privKey []byte) ([]byte, error) {
-	if len(ciphertext) < curve25519.PointSize {
-		return nil, fmt.Errorf("ciphertext too short")
-	}
-	ephemeralPub := ciphertext[:curve25519.PointSize]
-	encrypted := ciphertext[curve25519.PointSize:]
-	// Derive shared secret
-	sharedSecret, err := curve25519.X25519(privKey, ephemeralPub)
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive shared secret: %w", err)
-	}
-	block, err := aes.NewCipher(sharedSecret)
-	if err != nil {
-		return nil, err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	plaintext, err := gcm.Open(nil, nonce, encrypted, nil)
-	if err != nil {
-		return nil, err
-	}
 	return plaintext, nil
 }
 
@@ -151,11 +180,4 @@ func GenerateEd25519KeyPair() (publicKey []byte, privateKey []byte, err error) {
 }
 
 // DeriveSymmetricKeyHKDF derives a 32-byte symmetric key using HKDF-SHA256 from the shared secret, salt, and info.
-func DeriveSymmetricKeyHKDF(sharedSecret, salt, info []byte) ([]byte, error) {
-	hkdf := hkdf.New(sha256.New, sharedSecret, salt, info)
-	key := make([]byte, 32) // AES-256
-	if _, err := io.ReadFull(hkdf, key); err != nil {
-		return nil, err
-	}
-	return key, nil
-}
+// Legacy asymmetric + HKDF code removed.

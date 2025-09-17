@@ -1,5 +1,6 @@
 # Ignore secrets file
 secrets.json
+secrets_key_metadata.json
 device_keys.json
 
 # Ignore environment files (except .env.example)

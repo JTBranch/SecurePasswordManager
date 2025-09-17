@@ -1,7 +1,6 @@
 package crypto_test
 
 import (
-	"bytes"
 	"go-password-manager/internal/crypto"
 	"go-password-manager/tests/helpers"
 	"go-password-manager/tests/testdata"
@@ -20,14 +19,14 @@ func TestEncryptDecrypt(t *testing.T) {
 		key := []byte(testdata.TestEncryptionKey)
 
 		// Test encryption
-		encrypted, nonce, err := crypto.EncryptSymmetric([]byte(plaintext), key)
+		encrypted, nonce, err := crypto.EncryptSymmetric([]byte(plaintext), key, nil)
 		tc.Require.NoError(err, "Expected no error encrypting")
 
 		// Encrypted data should be different from plaintext
 		tc.Assert.NotEqual(string(encrypted), plaintext, "Encrypted data should not equal plaintext")
 
 		// Test decryption
-		decrypted, err := crypto.DecryptSymmetric(encrypted, nonce, key)
+		decrypted, err := crypto.DecryptSymmetric(encrypted, nonce, key, nil)
 		tc.Require.NoError(err, "Expected no error decrypting")
 
 		// Decrypted data should match original plaintext
@@ -42,10 +41,10 @@ func TestEncryptDecryptEmpty(t *testing.T) {
 		plaintext := ""
 		key := []byte(testdata.TestEncryptionKey)
 
-		encrypted, nonce, err := crypto.EncryptSymmetric([]byte(plaintext), key)
+		encrypted, nonce, err := crypto.EncryptSymmetric([]byte(plaintext), key, nil)
 		tc.Require.NoError(err, "Expected no error encrypting empty string")
 
-		decrypted, err := crypto.DecryptSymmetric(encrypted, nonce, key)
+		decrypted, err := crypto.DecryptSymmetric(encrypted, nonce, key, nil)
 		tc.Require.NoError(err, "Expected no error decrypting empty string")
 
 		tc.Assert.Equal(string(decrypted), plaintext, "Expected empty string")
@@ -59,10 +58,10 @@ func TestEncryptDecryptLongText(t *testing.T) {
 		plaintext := testdata.TestSecrets.Long.Value
 		key := []byte(testdata.TestEncryptionKey)
 
-		encrypted, nonce, err := crypto.EncryptSymmetric([]byte(plaintext), key)
+		encrypted, nonce, err := crypto.EncryptSymmetric([]byte(plaintext), key, nil)
 		tc.Require.NoError(err, "Expected no error encrypting long text")
 
-		decrypted, err := crypto.DecryptSymmetric(encrypted, nonce, key)
+		decrypted, err := crypto.DecryptSymmetric(encrypted, nonce, key, nil)
 		tc.Require.NoError(err, "Expected no error decrypting long text")
 
 		tc.Assert.Equal(string(decrypted), plaintext, "Expected decrypted text to match original")
@@ -77,11 +76,11 @@ func TestDecryptWithWrongKey(t *testing.T) {
 		key2 := []byte(testdata.DifferentEncryptionKey)
 
 		// Encrypt with key1
-		encrypted, nonce, err := crypto.EncryptSymmetric([]byte(plaintext), key1)
+		encrypted, nonce, err := crypto.EncryptSymmetric([]byte(plaintext), key1, nil)
 		tc.Require.NoError(err, "Expected no error encrypting")
 
 		// Try to decrypt with key2 (should fail)
-		_, err = crypto.DecryptSymmetric(encrypted, nonce, key2)
+		_, err = crypto.DecryptSymmetric(encrypted, nonce, key2, nil)
 		tc.Assert.Error(err, "Expected error when decrypting with wrong key")
 	})
 }
@@ -92,10 +91,10 @@ func TestEncryptDecryptSpecialCharacters(t *testing.T) {
 		plaintext := testdata.TestSecrets.Special.Value
 		key := []byte(testdata.TestEncryptionKey)
 
-		encrypted, nonce, err := crypto.EncryptSymmetric([]byte(plaintext), key)
+		encrypted, nonce, err := crypto.EncryptSymmetric([]byte(plaintext), key, nil)
 		tc.Require.NoError(err, "Expected no error encrypting special characters")
 
-		decrypted, err := crypto.DecryptSymmetric(encrypted, nonce, key)
+		decrypted, err := crypto.DecryptSymmetric(encrypted, nonce, key, nil)
 		tc.Require.NoError(err, "Expected no error decrypting special characters")
 
 		tc.Assert.Equal(string(decrypted), plaintext, "Expected decrypted text to match original")
@@ -103,120 +102,14 @@ func TestEncryptDecryptSpecialCharacters(t *testing.T) {
 	})
 }
 
-// --- X25519 Asymmetric Crypto Tests ---
-
-const (
-	errKeyGen  = "Key pair generation failed: %v"
-	errEncrypt = "Encryption failed: %v"
-	errDecrypt = "Decryption failed: %v"
-)
+// Legacy asymmetric & HKDF tests removed (protocol now uses key box only).
 
 func TestGenerateX25519KeyPair(t *testing.T) {
 	pub, _, err := crypto.GenerateX25519KeyPair()
-	if err != nil {
-		require.NoError(t, err, errKeyGen)
-	}
+	require.NoError(t, err)
 	if len(pub) != 32 {
 		t.Errorf("Expected 32-byte public key, got %d", len(pub))
 	}
-}
-
-func TestEncryptDecryptAsymmetricSuccess(t *testing.T) {
-	pub, priv, err := crypto.GenerateX25519KeyPair()
-	if err != nil {
-		require.NoError(t, err, errKeyGen)
-	}
-	plaintext := []byte("hello asymmetric world")
-	result, err := crypto.EncryptAsymmetric(plaintext, pub)
-	if err != nil {
-		require.NoError(t, err, errEncrypt)
-	}
-	// Check all fields
-	if len(result.Ciphertext) == 0 {
-		t.Errorf("Ciphertext should not be empty")
-	}
-	if len(result.Nonce) == 0 {
-		t.Errorf("Nonce should not be empty")
-	}
-	if len(result.EphemeralPublicKey) != 32 {
-		t.Errorf("Ephemeral public key should be 32 bytes, got %d", len(result.EphemeralPublicKey))
-	}
-	fullCipher := append(result.EphemeralPublicKey, result.Ciphertext...)
-	// Decrypt using priv
-	decrypted, err := crypto.DecryptAsymmetric(fullCipher, result.Nonce, priv)
-	if err != nil {
-		require.NoError(t, err, errDecrypt)
-	}
-	if string(decrypted) != string(plaintext) {
-		t.Errorf("Decrypted text does not match original")
-	}
-}
-
-func TestEncryptDecryptAsymmetricEmptyPlaintext(t *testing.T) {
-	pub, priv, err := crypto.GenerateX25519KeyPair()
-	if err != nil {
-		require.NoError(t, err, errKeyGen)
-	}
-	plaintext := []byte("")
-	result, err := crypto.EncryptAsymmetric(plaintext, pub)
-	if err != nil {
-		require.NoError(t, err, errEncrypt)
-	}
-	if len(result.Ciphertext) == 0 {
-		t.Errorf("Ciphertext should not be empty for empty plaintext")
-	}
-	fullCipher := append(result.EphemeralPublicKey, result.Ciphertext...)
-	decrypted, err := crypto.DecryptAsymmetric(fullCipher, result.Nonce, priv)
-	if err != nil {
-		require.NoError(t, err, errDecrypt)
-	}
-	if string(decrypted) != string(plaintext) {
-		t.Errorf("Decrypted text does not match original (empty)")
-	}
-}
-
-func TestDecryptAsymmetricWrongKey(t *testing.T) {
-	pub, _, err := crypto.GenerateX25519KeyPair()
-	if err != nil {
-		require.NoError(t, err, errKeyGen)
-	}
-	_, otherPriv, err := crypto.GenerateX25519KeyPair()
-	if err != nil {
-		require.NoError(t, err, errKeyGen)
-	}
-	plaintext := []byte("should not decrypt")
-	result, err := crypto.EncryptAsymmetric(plaintext, pub)
-	if err != nil {
-		require.NoError(t, err, errEncrypt)
-	}
-	// Try to decrypt with wrong private key
-	encrypted := append(result.Nonce, result.Ciphertext...)
-	fullCipher := append(result.EphemeralPublicKey, encrypted...)
-	_, err = crypto.DecryptAsymmetric(fullCipher, result.Nonce, otherPriv)
-	if err == nil {
-		t.Errorf("Expected error when decrypting with wrong private key")
-	}
-}
-
-func TestDecryptAsymmetricInvalidCiphertext(t *testing.T) {
-	_, priv, err := crypto.GenerateX25519KeyPair()
-	if err != nil {
-		require.NoError(t, err, errKeyGen)
-	}
-	// Too short ciphertext
-	_, err = crypto.DecryptAsymmetric([]byte("short"), []byte("shortnonce"), priv)
-	if err == nil {
-		t.Errorf("Expected error for short ciphertext")
-	}
-}
-func TestDeriveSymmetricKeyHKDF(t *testing.T) {
-	sharedSecret := []byte("shared-secret-value")
-	salt := []byte("test-salt")
-	info := []byte("test-info")
-	key, err := crypto.DeriveSymmetricKeyHKDF(sharedSecret, salt, info)
-	assert.NoError(t, err, "DeriveSymmetricKeyHKDF failed")
-	assert.Equal(t, 32, len(key), "Expected key length 32")
-	assert.False(t, bytes.Equal(key, make([]byte, 32)), "Derived key should not be all zeros")
 }
 
 func TestGenerateEd25519KeyPair(t *testing.T) {

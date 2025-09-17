@@ -33,13 +33,13 @@ const (
 )
 
 type DeviceKeyManager struct {
-	KeyPairGenerator      KeyPairGenerator
-	KeyringProvider       KeyringProvider
-	PEMProvider           PEMProvider
-	DeviceName            string
-	UserID                string
-	DeviceKeyConfig       *devicekeys.DeviceKeyConfig // injected config
-	DeviceKeyFileProvidor DeviceKeyFileProvidor
+	keyPairGenerator      KeyPairGenerator
+	keyringProvider       KeyringProvider
+	pemProvider           PEMProvider
+	deviceName            string
+	userID                string
+	deviceKeyConfig       *devicekeys.DeviceKeyConfig // injected config
+	deviceKeyFileProvider DeviceKeyFileProvider
 }
 type KeyringProvider interface {
 	Set(service, key, value string) error
@@ -47,26 +47,26 @@ type KeyringProvider interface {
 	Delete(service, key string) error
 }
 
-type DefaultKeyringProvider struct{}
+type DefaultkeyringProvider struct{}
 
-func (k *DefaultKeyringProvider) Set(service, key, value string) error {
+func (k *DefaultkeyringProvider) Set(service, key, value string) error {
 	return keyring.Set(service, key, value)
 }
-func (k *DefaultKeyringProvider) Get(service, key string) (string, error) {
+func (k *DefaultkeyringProvider) Get(service, key string) (string, error) {
 	return keyring.Get(service, key)
 }
-func (k *DefaultKeyringProvider) Delete(service, key string) error {
+func (k *DefaultkeyringProvider) Delete(service, key string) error {
 	return keyring.Delete(service, key)
 }
 
-type DeviceKeyFileProvidor interface {
+type DeviceKeyFileProvider interface {
 	SaveDeviceKeys(config *devicekeys.DeviceKeyConfig) error
 	LoadDeviceKeys() (*devicekeys.DeviceKeyConfig, error)
 }
 
 func NewDeviceKeyManager(keyPairGenerator KeyPairGenerator,
 	pemProvider PEMProvider,
-	deviceKeyFileProvidor DeviceKeyFileProvidor,
+	deviceKeyFileProvider DeviceKeyFileProvider,
 ) (*DeviceKeyManager, error) {
 	u, err := user.Current()
 	if err != nil {
@@ -78,33 +78,33 @@ func NewDeviceKeyManager(keyPairGenerator KeyPairGenerator,
 		logger.Error("failed to get hostname: ", err)
 		return nil, err
 	}
-	deviceKeyConfig, err := deviceKeyFileProvidor.LoadDeviceKeys()
+	deviceKeyConfig, err := deviceKeyFileProvider.LoadDeviceKeys()
 	if err != nil {
 		logger.Error("failed to load device key config: ", err)
 		return nil, err
 	}
 	return &DeviceKeyManager{
-		KeyPairGenerator:      keyPairGenerator,
-		KeyringProvider:       &DefaultKeyringProvider{},
-		PEMProvider:           pemProvider,
-		DeviceName:            deviceName,
-		UserID:                u.Username,
-		DeviceKeyConfig:       deviceKeyConfig,
-		DeviceKeyFileProvidor: deviceKeyFileProvidor,
+		keyPairGenerator:      keyPairGenerator,
+		keyringProvider:       &DefaultkeyringProvider{},
+		pemProvider:           pemProvider,
+		deviceName:            deviceName,
+		userID:                u.Username,
+		deviceKeyConfig:       deviceKeyConfig,
+		deviceKeyFileProvider: deviceKeyFileProvider,
 	}, nil
 }
 
 func (m *DeviceKeyManager) SetKeyringProvider(keyringProvider KeyringProvider) {
-	m.KeyringProvider = keyringProvider
+	m.keyringProvider = keyringProvider
 }
 
-func (m *DeviceKeyManager) SetDeviceKeyFileProvidor(provider DeviceKeyFileProvidor) {
-	m.DeviceKeyFileProvidor = provider
+func (m *DeviceKeyManager) SetDeviceKeyFileProvider(provider DeviceKeyFileProvider) {
+	m.deviceKeyFileProvider = provider
 }
 
 // GenerateDeviceKey creates a new device key pair and returns the DeviceKey struct.
 func (m *DeviceKeyManager) GenerateEncryptionDeviceKey() (*DeviceKey, error) {
-	pub, priv, err := m.KeyPairGenerator.GenerateX25519KeyPair()
+	pub, priv, err := m.keyPairGenerator.GenerateX25519KeyPair()
 	if err != nil {
 		logger.Error("failed to generate key pair: ", err)
 		return nil, err
@@ -114,7 +114,7 @@ func (m *DeviceKeyManager) GenerateEncryptionDeviceKey() (*DeviceKey, error) {
 
 // GenerateDeviceKey creates a new device key pair and returns the DeviceKey struct.
 func (m *DeviceKeyManager) GenerateSigningDeviceKey() (*DeviceKey, error) {
-	pub, priv, err := m.KeyPairGenerator.GenerateEd25519KeyPair()
+	pub, priv, err := m.keyPairGenerator.GenerateEd25519KeyPair()
 	if err != nil {
 		logger.Error("failed to generate key pair: ", err)
 		return nil, err
@@ -124,13 +124,13 @@ func (m *DeviceKeyManager) GenerateSigningDeviceKey() (*DeviceKey, error) {
 
 func (m *DeviceKeyManager) GenerateDeviceKey(pub, priv []byte, keyType devicekeys.KeyType, serviceName string) (*DeviceKey, error) {
 
-	pemBytes, err := m.PEMProvider.EncodeKeyToPEM(priv, keyType)
+	pemBytes, err := m.pemProvider.EncodeKeyToPEM(priv, keyType)
 	if err != nil {
 		logger.Error("failed to encode private key to PEM: ", err)
 		return nil, err
 	}
 
-	err = m.KeyringProvider.Set(serviceName, m.DeviceName, string(pemBytes))
+	err = m.keyringProvider.Set(serviceName, m.deviceName, string(pemBytes))
 	if err != nil {
 		logger.Error("failed to set keyring: ", err)
 		return nil, err
@@ -138,11 +138,11 @@ func (m *DeviceKeyManager) GenerateDeviceKey(pub, priv []byte, keyType devicekey
 
 	return &DeviceKey{
 		ID:         uuid.New().String(),
-		DeviceName: m.DeviceName,
+		DeviceName: m.deviceName,
 		CreatedAt:  time.Now(),
 		PublicKey:  pub,
 		PrivateKey: priv,
-		UserID:     m.UserID,
+		UserID:     m.userID,
 		KeyType:    keyType,
 	}, nil
 }
@@ -150,7 +150,7 @@ func (m *DeviceKeyManager) GenerateDeviceKey(pub, priv []byte, keyType devicekey
 // GetDeviceKey loads the device key from secure storage.
 func (m *DeviceKeyManager) GetEncryptionDeviceKey() (*DeviceKey, error) {
 
-	key, err := m.KeyringProvider.Get(KeyringServiceEncryption, m.DeviceName)
+	key, err := m.keyringProvider.Get(KeyringServiceEncryption, m.deviceName)
 	if err != nil {
 		logger.Error("failed to get keyring: ", err)
 		newKey, genErr := m.GenerateEncryptionDeviceKey()
@@ -158,12 +158,12 @@ func (m *DeviceKeyManager) GetEncryptionDeviceKey() (*DeviceKey, error) {
 			logger.Error("failed to save device keys: ", genErr)
 			return nil, genErr
 		}
-		m.DeviceKeyConfig.CurrentKey.EncryptionKey = *cryptoToConfigKey(newKey, 1)
-		m.DeviceKeyFileProvidor.SaveDeviceKeys(m.DeviceKeyConfig)
+		m.deviceKeyConfig.CurrentKey.EncryptionKey = *cryptoToConfigKey(newKey, 1)
+		m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
 		return newKey, nil
 	}
 
-	decodedPriv, err := m.PEMProvider.DecodeKeyFromPEM([]byte(key), devicekeys.KeyTypeX25519Private)
+	decodedPriv, err := m.pemProvider.DecodeKeyFromPEM([]byte(key), devicekeys.KeyTypeX25519Private)
 	if err != nil {
 		logger.Error("failed to decode private key from PEM: ", err)
 		return nil, err
@@ -171,11 +171,11 @@ func (m *DeviceKeyManager) GetEncryptionDeviceKey() (*DeviceKey, error) {
 
 	return &DeviceKey{
 		ID:         uuid.New().String(),
-		DeviceName: m.DeviceName,
+		DeviceName: m.deviceName,
 		CreatedAt:  time.Now(),
-		PublicKey:  m.DeviceKeyConfig.CurrentKey.EncryptionKey.PublicKey,
+		PublicKey:  m.deviceKeyConfig.CurrentKey.EncryptionKey.PublicKey,
 		PrivateKey: decodedPriv,
-		UserID:     m.UserID,
+		UserID:     m.userID,
 		KeyType:    devicekeys.KeyTypeX25519,
 	}, nil
 }
@@ -183,7 +183,7 @@ func (m *DeviceKeyManager) GetEncryptionDeviceKey() (*DeviceKey, error) {
 // GetDeviceKey loads the device key from secure storage.
 func (m *DeviceKeyManager) GetSigningDeviceKey() (*DeviceKey, error) {
 
-	key, err := m.KeyringProvider.Get(KeyringServiceSigning, m.DeviceName)
+	key, err := m.keyringProvider.Get(KeyringServiceSigning, m.deviceName)
 	if err != nil {
 		logger.Error("failed to get keyring: ", err)
 		newKey, genErr := m.GenerateSigningDeviceKey()
@@ -191,12 +191,12 @@ func (m *DeviceKeyManager) GetSigningDeviceKey() (*DeviceKey, error) {
 			logger.Error("failed to save device keys: ", genErr)
 			return nil, genErr
 		}
-		m.DeviceKeyConfig.CurrentKey.SigningKey = *cryptoToConfigKey(newKey, 1)
-		m.DeviceKeyFileProvidor.SaveDeviceKeys(m.DeviceKeyConfig)
+		m.deviceKeyConfig.CurrentKey.SigningKey = *cryptoToConfigKey(newKey, 1)
+		m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
 		return newKey, nil
 	}
 
-	decodedPriv, err := m.PEMProvider.DecodeKeyFromPEM([]byte(key), devicekeys.KeyTypeEd25519Private)
+	decodedPriv, err := m.pemProvider.DecodeKeyFromPEM([]byte(key), devicekeys.KeyTypeEd25519Private)
 	if err != nil {
 		logger.Error("failed to decode private key from PEM: ", err)
 		return nil, err
@@ -204,11 +204,11 @@ func (m *DeviceKeyManager) GetSigningDeviceKey() (*DeviceKey, error) {
 
 	return &DeviceKey{
 		ID:         uuid.New().String(),
-		DeviceName: m.DeviceName,
+		DeviceName: m.deviceName,
 		CreatedAt:  time.Now(),
-		PublicKey:  m.DeviceKeyConfig.CurrentKey.SigningKey.PublicKey,
+		PublicKey:  m.deviceKeyConfig.CurrentKey.SigningKey.PublicKey,
 		PrivateKey: decodedPriv,
-		UserID:     m.UserID,
+		UserID:     m.userID,
 		KeyType:    devicekeys.KeyTypeEd25519,
 	}, nil
 }
@@ -225,23 +225,23 @@ func cryptoToConfigKey(cryptoKey *DeviceKey, version int) *devicekeys.DeviceKey 
 
 // DeleteDeviceKey deletes the device key from secure storage (for reset/compromise).
 func (m *DeviceKeyManager) DeleteSigningDeviceKey() error {
-	return m.KeyringProvider.Delete(KeyringServiceSigning, m.DeviceName)
+	return m.keyringProvider.Delete(KeyringServiceSigning, m.deviceName)
 }
 
 // DeleteDeviceKey deletes the device key from secure storage (for reset/compromise).
 func (m *DeviceKeyManager) DeleteEncryptionDeviceKey() error {
-	return m.KeyringProvider.Delete(KeyringServiceEncryption, m.DeviceName)
+	return m.keyringProvider.Delete(KeyringServiceEncryption, m.deviceName)
 }
 
 // RotateDeviceKey generates a new device key, archives the old one, and returns the new key.
 func (m *DeviceKeyManager) RotateEncryptionDeviceKey(deviceName, userID, keyType string) (*DeviceKey, error) {
-	oldKey, err := m.KeyringProvider.Get(KeyringServiceEncryption, m.DeviceName)
+	oldKey, err := m.keyringProvider.Get(KeyringServiceEncryption, m.deviceName)
 	if err != nil {
 		return m.GetEncryptionDeviceKey()
 	}
-	oldKeyID := m.DeviceKeyConfig.CurrentKey.EncryptionKey.KeyID
-	archivedService := KeyringServiceEncryption + "-archived-" + m.DeviceName
-	err = m.KeyringProvider.Set(archivedService, oldKeyID, oldKey)
+	oldKeyID := m.deviceKeyConfig.CurrentKey.EncryptionKey.KeyID
+	archivedService := KeyringServiceEncryption + "-archived-" + m.deviceName
+	err = m.keyringProvider.Set(archivedService, oldKeyID, oldKey)
 	if err != nil {
 		logger.Error("failed to store old private key in keychain: ", err)
 		return nil, err
@@ -253,24 +253,24 @@ func (m *DeviceKeyManager) RotateEncryptionDeviceKey(deviceName, userID, keyType
 		return nil, genErr
 	}
 
-	m.DeviceKeyConfig.Archived = append(m.DeviceKeyConfig.Archived, *m.DeviceKeyConfig.CurrentKey)
-	version := m.DeviceKeyConfig.CurrentKey.EncryptionKey.Version
+	m.deviceKeyConfig.Archived = append(m.deviceKeyConfig.Archived, *m.deviceKeyConfig.CurrentKey)
+	version := m.deviceKeyConfig.CurrentKey.EncryptionKey.Version
 
-	m.DeviceKeyConfig.CurrentKey.EncryptionKey = *cryptoToConfigKey(newKey, version+1)
-	m.DeviceKeyFileProvidor.SaveDeviceKeys(m.DeviceKeyConfig)
+	m.deviceKeyConfig.CurrentKey.EncryptionKey = *cryptoToConfigKey(newKey, version+1)
+	m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
 
 	return newKey, nil
 }
 
 // RotateDeviceKey generates a new device key, archives the old one, and returns the new key.
 func (m *DeviceKeyManager) RotateSigningDeviceKey(deviceName, userID, keyType string) (*DeviceKey, error) {
-	oldKey, err := m.KeyringProvider.Get(KeyringServiceSigning, m.DeviceName)
+	oldKey, err := m.keyringProvider.Get(KeyringServiceSigning, m.deviceName)
 	if err != nil {
 		return m.GetSigningDeviceKey()
 	}
-	oldKeyID := m.DeviceKeyConfig.CurrentKey.SigningKey.KeyID
-	archivedService := KeyringServiceSigning + "-archived-" + m.DeviceName
-	err = m.KeyringProvider.Set(archivedService, oldKeyID, oldKey)
+	oldKeyID := m.deviceKeyConfig.CurrentKey.SigningKey.KeyID
+	archivedService := KeyringServiceSigning + "-archived-" + m.deviceName
+	err = m.keyringProvider.Set(archivedService, oldKeyID, oldKey)
 	if err != nil {
 		logger.Error("failed to store old private key in keychain: ", err)
 		return nil, err
@@ -282,19 +282,19 @@ func (m *DeviceKeyManager) RotateSigningDeviceKey(deviceName, userID, keyType st
 		return nil, genErr
 	}
 
-	m.DeviceKeyConfig.Archived = append(m.DeviceKeyConfig.Archived, *m.DeviceKeyConfig.CurrentKey)
-	version := m.DeviceKeyConfig.CurrentKey.SigningKey.Version
+	m.deviceKeyConfig.Archived = append(m.deviceKeyConfig.Archived, *m.deviceKeyConfig.CurrentKey)
+	version := m.deviceKeyConfig.CurrentKey.SigningKey.Version
 
-	m.DeviceKeyConfig.CurrentKey.SigningKey = *cryptoToConfigKey(newKey, version+1)
-	m.DeviceKeyFileProvidor.SaveDeviceKeys(m.DeviceKeyConfig)
+	m.deviceKeyConfig.CurrentKey.SigningKey = *cryptoToConfigKey(newKey, version+1)
+	m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
 
 	return newKey, nil
 }
 
 func (m *DeviceKeyManager) GetDeviceName() string {
-	return m.DeviceName
+	return m.deviceName
 }
 
 func (m *DeviceKeyManager) GetAppUser() string {
-	return m.UserID
+	return m.userID
 }

@@ -1,8 +1,10 @@
 package sharing
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"go-password-manager/internal/config/devicekeys"
 	"go-password-manager/internal/crypto"
 	"time"
 
@@ -10,14 +12,15 @@ import (
 )
 
 type CryptoProvider interface {
-	EncryptAsymmetricFull(plaintext []byte, pubKey []byte) (crypto.AsymmetricEncryptResult, error)
-	DecryptAsymmetric(ciphertext, nonce, privKey []byte) ([]byte, error)
-	EncryptSymmetric(plaintext []byte, key []byte) ([]byte, []byte, error)
-	DecryptSymmetric(ciphertext, nonce, key []byte) ([]byte, error)
-	ECDH(privateKey []byte, publicKey []byte) ([]byte, error)
+	EncryptSymmetric(plaintext []byte, key []byte, aad []byte) ([]byte, []byte, error)
+	DecryptSymmetric(ciphertext, nonce, key []byte, aad []byte) ([]byte, error) // used by import path
 	SignEd25519(data []byte, privKey []byte) ([]byte, error)
 	VerifyEd25519(data []byte, sig []byte, pubKey []byte) (bool, error)
-	DeriveSymmetricKey(sharedSecret, senderEphemeralPub, recipientEphemeralPubKey []byte) ([]byte, error)
+}
+
+// pemDecoder allows decoding PEM keys when the underlying provider supports it
+type pemDecoder interface {
+	DecodeKeyFromPEM(key []byte, keyType devicekeys.KeyType) ([]byte, error)
 }
 
 // DeviceKeyManager handles long-term device key pair management
@@ -42,28 +45,26 @@ func NewExportService(cryptoProvider CryptoProvider, deviceKeyProvider DeviceKey
 
 // / ExportSecrets creates a secure export bundle for the given secrets and recipient.
 
-func (s *ExportService) ExportSecrets(secrets []ExportSecret, recipientEphemeralPubKey []byte, expiryMinutes int, senderInfo SenderMetadata) (*SecretExportBundle, error) {
-	// 1. Generate sender ephemeral key pair
-	senderEphemeralPub, senderEphemeralPriv, err := crypto.GenerateX25519KeyPair()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate sender ephemeral key pair: %w", err)
+func (s *ExportService) ExportSecrets(secrets []ExportSecret, recipientEphemeralPubKey []byte, expirySeconds int, senderInfo SenderMetadata) (*SecretExportBundle, error) {
+	// Prepare bundle ID early for AAD
+	bundleID := uuid.NewString()
+	// 1. Decode recipient public key (PEM) if provider supports it (raw X25519 key needed for key box wrapping)
+	recipientPubDecoded := recipientEphemeralPubKey
+	if dec, ok := s.CryptoProvider.(pemDecoder); ok {
+		decoded, derr := dec.DecodeKeyFromPEM(recipientEphemeralPubKey, devicekeys.KeyTypeX25519Public)
+		if derr != nil {
+			return nil, fmt.Errorf("failed to decode recipient public key: %w", derr)
+		}
+		recipientPubDecoded = decoded
 	}
 
-	// 2. Recipient ephemeral public key is provided (recipientEphemeralPubKey)
-	// 3. ECDH: derive shared symmetric key
-	sharedSecret, err := s.CryptoProvider.ECDH(senderEphemeralPriv, recipientEphemeralPubKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive shared secret: %w", err)
+	// 2. Generate a fresh 32-byte symmetric key for encrypting the secrets
+	symKey := make([]byte, 32)
+	if _, err := rand.Read(symKey); err != nil {
+		return nil, fmt.Errorf("failed to generate symmetric key: %w", err)
 	}
 
-	derivedKey, err := s.deriveSymmetricKey(sharedSecret, senderEphemeralPub, recipientEphemeralPubKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive symmetric key: %w", err)
-	}
-	encryptedSecrets, secretsNonce, err := s.encryptSecrets(secrets, derivedKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt secrets: %w", err)
-	}
+	// (Secrets encryption moved after AAD construction to bind same context)
 
 	encryptionDeviceKey, err := s.DeviceKeyProvider.GetEncryptionDeviceKey()
 	if err != nil {
@@ -74,36 +75,41 @@ func (s *ExportService) ExportSecrets(secrets []ExportSecret, recipientEphemeral
 	senderInfo.DeviceName = s.DeviceKeyProvider.GetDeviceName()
 	senderInfo.UserID = s.DeviceKeyProvider.GetAppUser()
 
-	encryptedSymmetricKey, keyNonce, err := s.encryptSymmetricKey(derivedKey, recipientEphemeralPubKey)
+	// 4. Obtain signing key early to build AAD (bundleID || 0x00 || signingPub)
+	signingDeviceKey, err := s.DeviceKeyProvider.GetSigningDeviceKey()
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt symmetric key: %w", err)
+		crypto.Zeroize(symKey)
+		return nil, fmt.Errorf("failed to get sender long-term public key: %w", err)
 	}
+	senderInfo.SigningPublicKey = signingDeviceKey.PublicKey
+	// Key box AAD domain: bundleID || 0x00 || signingPub
+	keyBoxAAD := buildKeyBoxAAD(bundleID, signingDeviceKey.PublicKey)
+	secretsAAD := buildSecretsAAD(bundleID, signingDeviceKey.PublicKey)
+	// 5. Encrypt secrets using secretsAAD and then wrap symmetric key with keyBoxAAD
+	encryptedSecrets, secretsNonce, err := s.encryptSecrets(secrets, symKey, secretsAAD)
+	if err != nil {
+		crypto.Zeroize(symKey)
+		return nil, fmt.Errorf("failed to encrypt secrets: %w", err)
+	}
+	// 6. Wrap the symmetric key in a single compact key box (version|ephemeral|nonce|ciphertext) with AAD
+	wrappedKeyBox, err := crypto.WrapKeyBox(symKey, recipientPubDecoded, keyBoxAAD)
+	if err != nil {
+		crypto.Zeroize(symKey)
+		return nil, fmt.Errorf("failed to wrap symmetric key: %w", err)
+	}
+	// Zeroize symmetric key after wrapping
+	crypto.Zeroize(symKey)
 
-	// 5. Wipe ephemeral private keys (in Go, just let them go out of scope)
+	// 7. Wipe ephemeral private keys (in Go, just let them go out of scope)
 
-	id := uuid.NewString()
+	id := bundleID
 	shortID := id[:8]
 	timestamp := time.Now().Unix()
 	name := fmt.Sprintf("exported-%d-%s.pem", timestamp, shortID)
 
-	signingDeviceKey, err := s.DeviceKeyProvider.GetSigningDeviceKey()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sender long-term public key: %w", err)
-	}
-	senderInfo.SigningPublicKey = signingDeviceKey.PublicKey
+	// signingDeviceKey already loaded above
 
-	bundlePayload := &SecretExportPayload{
-		ID:                    id,
-		Name:                  name,
-		EncryptedSecrets:      encryptedSecrets,
-		SecretsNonce:          secretsNonce,
-		KeyNonce:              keyNonce,
-		Timestamp:             timestamp,
-		ExpiresAt:             timestamp + int64(expiryMinutes*60),
-		SenderInfo:            senderInfo,
-		EncryptedSymmetricKey: encryptedSymmetricKey,
-		EphemeralPublicKey:    senderEphemeralPub,
-	}
+	bundlePayload := &SecretExportPayload{ID: id, Name: name, EncryptedSecrets: encryptedSecrets, SecretsNonce: secretsNonce, Timestamp: timestamp, ExpiresAt: timestamp + int64(expirySeconds), SenderInfo: senderInfo, SymmetricKeyBox: wrappedKeyBox}
 
 	signature, err := s.SignBundle(bundlePayload, signingDeviceKey.PrivateKey)
 	if err != nil {
@@ -115,14 +121,9 @@ func (s *ExportService) ExportSecrets(secrets []ExportSecret, recipientEphemeral
 	}, nil
 }
 
-func (s *ExportService) deriveSymmetricKey(sharedSecret, senderEphemeralPub, recipientEphemeralPubKey []byte) ([]byte, error) {
-	// Use senderEphemeralPub as salt, recipientEphemeralPubKey as info
-	return s.CryptoProvider.DeriveSymmetricKey(sharedSecret, senderEphemeralPub, recipientEphemeralPubKey)
-}
-
 // encryptSecrets encrypts the secrets data with the symmetric key and returns ciphertext and nonce.
 
-func (s *ExportService) encryptSecrets(secrets []ExportSecret, symmetricKey []byte) (ciphertext []byte, nonce []byte, err error) {
+func (s *ExportService) encryptSecrets(secrets []ExportSecret, symmetricKey []byte, aad []byte) (ciphertext []byte, nonce []byte, err error) {
 	// Serialize secrets to JSON
 	secretsData, err := json.Marshal(secrets)
 	if err != nil {
@@ -130,7 +131,7 @@ func (s *ExportService) encryptSecrets(secrets []ExportSecret, symmetricKey []by
 	}
 
 	// Encrypt with symmetric key using cryptoProvider
-	encrypted, nonce, err := s.CryptoProvider.EncryptSymmetric(secretsData, symmetricKey)
+	encrypted, nonce, err := s.CryptoProvider.EncryptSymmetric(secretsData, symmetricKey, aad)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -138,15 +139,6 @@ func (s *ExportService) encryptSecrets(secrets []ExportSecret, symmetricKey []by
 }
 
 // encryptSymmetricKey encrypts the symmetric key with the recipient's public key.
-
-func (s *ExportService) encryptSymmetricKey(derivedKey []byte, recipientEphemeralPubKey []byte) ([]byte, []byte, error) {
-	encryptedSymmetricKeyResult, err := s.CryptoProvider.EncryptAsymmetricFull(derivedKey, recipientEphemeralPubKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to encrypt symmetric key: %w", err)
-	}
-	encryptedSymmetricKey := append(encryptedSymmetricKeyResult.EphemeralPublicKey, encryptedSymmetricKeyResult.Ciphertext...)
-	return encryptedSymmetricKey, encryptedSymmetricKeyResult.Nonce, nil
-}
 
 // signBundle signs the export bundle with the sender's private key.
 

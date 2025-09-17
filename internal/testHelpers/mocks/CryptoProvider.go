@@ -3,8 +3,6 @@
 package mocks
 
 import (
-	crypto "go-password-manager/internal/crypto"
-
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -13,39 +11,9 @@ type CryptoProvider struct {
 	mock.Mock
 }
 
-// DecryptAsymmetric provides a mock function with given fields: ciphertext, nonce, privKey
-func (_m *CryptoProvider) DecryptAsymmetric(ciphertext []byte, nonce []byte, privKey []byte) ([]byte, error) {
-	ret := _m.Called(ciphertext, nonce, privKey)
-
-	if len(ret) == 0 {
-		panic("no return value specified for DecryptAsymmetric")
-	}
-
-	var r0 []byte
-	var r1 error
-	if rf, ok := ret.Get(0).(func([]byte, []byte, []byte) ([]byte, error)); ok {
-		return rf(ciphertext, nonce, privKey)
-	}
-	if rf, ok := ret.Get(0).(func([]byte, []byte, []byte) []byte); ok {
-		r0 = rf(ciphertext, nonce, privKey)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func([]byte, []byte, []byte) error); ok {
-		r1 = rf(ciphertext, nonce, privKey)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // DecryptSymmetric provides a mock function with given fields: ciphertext, nonce, key
-func (_m *CryptoProvider) DecryptSymmetric(ciphertext []byte, nonce []byte, key []byte) ([]byte, error) {
-	ret := _m.Called(ciphertext, nonce, key)
+func (_m *CryptoProvider) DecryptSymmetric(ciphertext []byte, nonce []byte, key []byte, aad []byte) ([]byte, error) {
+	ret := _m.Called(ciphertext, nonce, key, aad)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DecryptSymmetric")
@@ -53,107 +21,19 @@ func (_m *CryptoProvider) DecryptSymmetric(ciphertext []byte, nonce []byte, key 
 
 	var r0 []byte
 	var r1 error
-	if rf, ok := ret.Get(0).(func([]byte, []byte, []byte) ([]byte, error)); ok {
-		return rf(ciphertext, nonce, key)
+	if rf, ok := ret.Get(0).(func([]byte, []byte, []byte, []byte) ([]byte, error)); ok {
+		return rf(ciphertext, nonce, key, aad)
 	}
-	if rf, ok := ret.Get(0).(func([]byte, []byte, []byte) []byte); ok {
-		r0 = rf(ciphertext, nonce, key)
+	if rf, ok := ret.Get(0).(func([]byte, []byte, []byte, []byte) []byte); ok {
+		r0 = rf(ciphertext, nonce, key, aad)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]byte)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func([]byte, []byte, []byte) error); ok {
-		r1 = rf(ciphertext, nonce, key)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// DeriveSymmetricKey provides a mock function with given fields: sharedSecret, senderEphemeralPub, recipientEphemeralPubKey
-func (_m *CryptoProvider) DeriveSymmetricKey(sharedSecret []byte, senderEphemeralPub []byte, recipientEphemeralPubKey []byte) ([]byte, error) {
-	ret := _m.Called(sharedSecret, senderEphemeralPub, recipientEphemeralPubKey)
-
-	if len(ret) == 0 {
-		panic("no return value specified for DeriveSymmetricKey")
-	}
-
-	var r0 []byte
-	var r1 error
-	if rf, ok := ret.Get(0).(func([]byte, []byte, []byte) ([]byte, error)); ok {
-		return rf(sharedSecret, senderEphemeralPub, recipientEphemeralPubKey)
-	}
-	if rf, ok := ret.Get(0).(func([]byte, []byte, []byte) []byte); ok {
-		r0 = rf(sharedSecret, senderEphemeralPub, recipientEphemeralPubKey)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func([]byte, []byte, []byte) error); ok {
-		r1 = rf(sharedSecret, senderEphemeralPub, recipientEphemeralPubKey)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// ECDH provides a mock function with given fields: privateKey, publicKey
-func (_m *CryptoProvider) ECDH(privateKey []byte, publicKey []byte) ([]byte, error) {
-	ret := _m.Called(privateKey, publicKey)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ECDH")
-	}
-
-	var r0 []byte
-	var r1 error
-	if rf, ok := ret.Get(0).(func([]byte, []byte) ([]byte, error)); ok {
-		return rf(privateKey, publicKey)
-	}
-	if rf, ok := ret.Get(0).(func([]byte, []byte) []byte); ok {
-		r0 = rf(privateKey, publicKey)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func([]byte, []byte) error); ok {
-		r1 = rf(privateKey, publicKey)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// EncryptAsymmetricFull provides a mock function with given fields: plaintext, pubKey
-func (_m *CryptoProvider) EncryptAsymmetricFull(plaintext []byte, pubKey []byte) (crypto.AsymmetricEncryptResult, error) {
-	ret := _m.Called(plaintext, pubKey)
-
-	if len(ret) == 0 {
-		panic("no return value specified for EncryptAsymmetricFull")
-	}
-
-	var r0 crypto.AsymmetricEncryptResult
-	var r1 error
-	if rf, ok := ret.Get(0).(func([]byte, []byte) (crypto.AsymmetricEncryptResult, error)); ok {
-		return rf(plaintext, pubKey)
-	}
-	if rf, ok := ret.Get(0).(func([]byte, []byte) crypto.AsymmetricEncryptResult); ok {
-		r0 = rf(plaintext, pubKey)
-	} else {
-		r0 = ret.Get(0).(crypto.AsymmetricEncryptResult)
-	}
-
-	if rf, ok := ret.Get(1).(func([]byte, []byte) error); ok {
-		r1 = rf(plaintext, pubKey)
+	if rf, ok := ret.Get(1).(func([]byte, []byte, []byte, []byte) error); ok {
+		r1 = rf(ciphertext, nonce, key, aad)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -162,8 +42,8 @@ func (_m *CryptoProvider) EncryptAsymmetricFull(plaintext []byte, pubKey []byte)
 }
 
 // EncryptSymmetric provides a mock function with given fields: plaintext, key
-func (_m *CryptoProvider) EncryptSymmetric(plaintext []byte, key []byte) ([]byte, []byte, error) {
-	ret := _m.Called(plaintext, key)
+func (_m *CryptoProvider) EncryptSymmetric(plaintext []byte, key []byte, aad []byte) ([]byte, []byte, error) {
+	ret := _m.Called(plaintext, key, aad)
 
 	if len(ret) == 0 {
 		panic("no return value specified for EncryptSymmetric")
@@ -172,105 +52,27 @@ func (_m *CryptoProvider) EncryptSymmetric(plaintext []byte, key []byte) ([]byte
 	var r0 []byte
 	var r1 []byte
 	var r2 error
-	if rf, ok := ret.Get(0).(func([]byte, []byte) ([]byte, []byte, error)); ok {
-		return rf(plaintext, key)
+	if rf, ok := ret.Get(0).(func([]byte, []byte, []byte) ([]byte, []byte, error)); ok {
+		return rf(plaintext, key, aad)
 	}
-	if rf, ok := ret.Get(0).(func([]byte, []byte) []byte); ok {
-		r0 = rf(plaintext, key)
+	if rf, ok := ret.Get(0).(func([]byte, []byte, []byte) []byte); ok {
+		r0 = rf(plaintext, key, aad)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]byte)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func([]byte, []byte) []byte); ok {
-		r1 = rf(plaintext, key)
+	if rf, ok := ret.Get(1).(func([]byte, []byte, []byte) []byte); ok {
+		r1 = rf(plaintext, key, aad)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).([]byte)
 		}
 	}
 
-	if rf, ok := ret.Get(2).(func([]byte, []byte) error); ok {
-		r2 = rf(plaintext, key)
-	} else {
-		r2 = ret.Error(2)
-	}
-
-	return r0, r1, r2
-}
-
-// GenerateEd25519KeyPair provides a mock function with no fields
-func (_m *CryptoProvider) GenerateEd25519KeyPair() ([]byte, []byte, error) {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for GenerateEd25519KeyPair")
-	}
-
-	var r0 []byte
-	var r1 []byte
-	var r2 error
-	if rf, ok := ret.Get(0).(func() ([]byte, []byte, error)); ok {
-		return rf()
-	}
-	if rf, ok := ret.Get(0).(func() []byte); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func() []byte); ok {
-		r1 = rf()
-	} else {
-		if ret.Get(1) != nil {
-			r1 = ret.Get(1).([]byte)
-		}
-	}
-
-	if rf, ok := ret.Get(2).(func() error); ok {
-		r2 = rf()
-	} else {
-		r2 = ret.Error(2)
-	}
-
-	return r0, r1, r2
-}
-
-// GenerateX25519KeyPair provides a mock function with no fields
-func (_m *CryptoProvider) GenerateX25519KeyPair() ([]byte, []byte, error) {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for GenerateX25519KeyPair")
-	}
-
-	var r0 []byte
-	var r1 []byte
-	var r2 error
-	if rf, ok := ret.Get(0).(func() ([]byte, []byte, error)); ok {
-		return rf()
-	}
-	if rf, ok := ret.Get(0).(func() []byte); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]byte)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func() []byte); ok {
-		r1 = rf()
-	} else {
-		if ret.Get(1) != nil {
-			r1 = ret.Get(1).([]byte)
-		}
-	}
-
-	if rf, ok := ret.Get(2).(func() error); ok {
-		r2 = rf()
+	if rf, ok := ret.Get(2).(func([]byte, []byte, []byte) error); ok {
+		r2 = rf(plaintext, key, aad)
 	} else {
 		r2 = ret.Error(2)
 	}

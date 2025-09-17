@@ -2,6 +2,7 @@ package integration
 
 import (
 	"encoding/json"
+	"fmt"
 	"go-password-manager/internal/config/devicekeys"
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/sharing"
@@ -83,9 +84,7 @@ func TestCanGenerateAndShareSecretBundle(t *testing.T) {
 		require.NotEmpty(t, exportBundle.Payload.Name, "Export bundle Name should not be empty")
 		require.NotNil(t, exportBundle.Payload.EncryptedSecrets, "EncryptedSecrets should not be nil")
 		require.NotNil(t, exportBundle.Payload.SecretsNonce, "SecretsNonce should not be nil")
-		require.NotNil(t, exportBundle.Payload.KeyNonce, "KeyNonce should not be nil")
-		require.NotNil(t, exportBundle.Payload.EncryptedSymmetricKey, "EncryptedSymmetricKey should not be nil")
-		require.NotNil(t, exportBundle.Payload.EphemeralPublicKey, "EphemeralPublicKey should not be nil")
+		require.NotNil(t, exportBundle.Payload.SymmetricKeyBox, "SymmetricKeyBox should not be nil")
 		require.NotNil(t, exportBundle.Signature, "Signature should not be nil")
 		require.True(t, exportBundle.Payload.Timestamp > 0, "Timestamp should be set")
 		require.True(t, exportBundle.Payload.ExpiresAt > exportBundle.Payload.Timestamp, "ExpiresAt should be after Timestamp")
@@ -224,9 +223,25 @@ func TestExportWithEmptySecrets(t *testing.T) {
 
 func TestImportCorruptedBundleData(t *testing.T) {
 	reporting.WithReporting(t, "TestImportCorruptedBundleData", func(reporter *reporting.TestWrapper) {
-		// suite := SetupSuite(reporter)
-		// testDataManager := testdata.NewTestDataManager()
-		// TODO: Implement test for importing corrupted bundle data
+		suite := SetupSuite(reporter)
+		testDataManager := testdata.NewTestDataManager()
+		secret := testdata.TestSecrets.Simple
+		require.NoError(t, testDataManager.CreateTestSecret(suite.SecretsService, secret.Name))
+		file, err := suite.SecretsService.LoadAllSecrets()
+		require.NoError(t, err)
+		pubPEM, privPEM, err := suite.CryptoService.GenerateX25519KeyPairPEM()
+		require.NoError(t, err)
+		exportBundle, err := suite.SharingService.ExportSecrets(file.Secrets, pubPEM, 300)
+		require.NoError(t, err)
+		// Corrupt a byte inside SymmetricKeyBox (avoid version byte); safe index offset 5 if length permits
+		if len(exportBundle.Payload.SymmetricKeyBox) > 6 {
+			exportBundle.Payload.SymmetricKeyBox[5] ^= 0xFF
+		}
+		res, ierr := suite.SharingService.ImportSecrets(exportBundle, privPEM, pubPEM)
+		require.NoError(t, ierr)
+		require.NotNil(t, res)
+		require.False(t, res.Success)
+		require.Error(t, res.Error)
 	})
 }
 
@@ -240,9 +255,55 @@ func TestPartialImportSomeSecretsExist(t *testing.T) {
 
 func TestExportImportLargeSecretValues(t *testing.T) {
 	reporting.WithReporting(t, "TestExportImportLargeSecretValues", func(reporter *reporting.TestWrapper) {
-		// suite := SetupSuite(reporter)
-		// testDataManager := testdata.NewTestDataManager()
-		// TODO: Implement test for large secret values
+		suite := SetupSuite(reporter)
+		testDataManager := testdata.NewTestDataManager()
+		// Generate N secrets with moderately large values
+		N := 200
+		large := make([]byte, 1024) // 1KB each
+		for i := range large {
+			large[i] = byte(i % 251)
+		}
+		// Use ASCII-safe content to avoid UTF-8 replacement during JSON marshal
+		pattern := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+		wantLen := 1024
+		b := make([]byte, wantLen)
+		for i := 0; i < wantLen; i++ {
+			b[i] = pattern[i%len(pattern)]
+		}
+		origValue := string(b)
+		for i := 0; i < N; i++ {
+			name := fmt.Sprintf("perf-secret-%03d", i)
+			err := testDataManager.CreateTestSecretWithValue(suite.SecretsService, name, origValue)
+			require.NoError(t, err)
+		}
+		file, err := suite.SecretsService.LoadAllSecrets()
+		require.NoError(t, err)
+		pubPEM, privPEM, err := suite.CryptoService.GenerateX25519KeyPairPEM()
+		require.NoError(t, err)
+		start := time.Now()
+		exportBundle, err := suite.SharingService.ExportSecrets(file.Secrets, pubPEM, 600)
+		require.NoError(t, err)
+		require.NotNil(t, exportBundle)
+		durExport := time.Since(start)
+		// prune one secret to validate import restores it
+		require.NoError(t, suite.SecretsService.DeleteSecret("perf-secret-000"))
+		impStart := time.Now()
+		res, err := suite.SharingService.ImportSecrets(exportBundle, privPEM, pubPEM)
+		require.NoError(t, err)
+		require.True(t, res.Success)
+		durImport := time.Since(impStart)
+		reporter.LogInfo("large secrets performance", map[string]interface{}{
+			"count":       N,
+			"export_ms":   durExport.Milliseconds(),
+			"import_ms":   durImport.Milliseconds(),
+			"total_bytes": N * len(large),
+		})
+		// Spot check one restored secret
+		sec, err := suite.SecretsService.GetSecret("perf-secret-000")
+		require.NoError(t, err)
+		val, err := suite.SecretsService.GetSecretValue(sec)
+		require.NoError(t, err)
+		require.Equal(t, origValue, val)
 	})
 }
 
@@ -264,8 +325,27 @@ func TestLogIntegrityForSharingActions(t *testing.T) {
 
 func TestMultipleImportsOfSameBundle(t *testing.T) {
 	reporting.WithReporting(t, "TestMultipleImportsOfSameBundle", func(reporter *reporting.TestWrapper) {
-		// suite := SetupSuite(reporter)
-		// testDataManager := testdata.NewTestDataManager()
-		// TODO: Implement test for multiple imports of the same bundle
+		suite := SetupSuite(reporter)
+		testDataManager := testdata.NewTestDataManager()
+		secret := testdata.TestSecrets.Simple
+		require.NoError(t, testDataManager.CreateTestSecret(suite.SecretsService, secret.Name))
+		file, err := suite.SecretsService.LoadAllSecrets()
+		require.NoError(t, err)
+		pubPEM, privPEM, err := suite.CryptoService.GenerateX25519KeyPairPEM()
+		require.NoError(t, err)
+		exportBundle, err := suite.SharingService.ExportSecrets(file.Secrets, pubPEM, 300)
+		require.NoError(t, err)
+		// Delete secret locally to prove re-import works once
+		require.NoError(t, suite.SecretsService.DeleteSecret(secret.Name))
+		// First import should succeed
+		res1, err1 := suite.SharingService.ImportSecrets(exportBundle, privPEM, pubPEM)
+		require.NoError(t, err1)
+		require.True(t, res1.Success)
+		// Second import should be blocked (replay)
+		res2, err2 := suite.SharingService.ImportSecrets(exportBundle, privPEM, pubPEM)
+		require.NoError(t, err2)
+		require.False(t, res2.Success)
+		require.Error(t, res2.Error)
+		require.Contains(t, res2.Error.Error(), "replay")
 	})
 }

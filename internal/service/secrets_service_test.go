@@ -36,11 +36,11 @@ func newMockCryptoService(key []byte) *MockCryptoService {
 }
 
 // For versioning tests, override methods to return input data directly
-func (m *MockCryptoService) EncryptSymmetric(data, key []byte) ([]byte, []byte, error) {
+func (m *MockCryptoService) EncryptSymmetric(data, key []byte, aad []byte) ([]byte, []byte, error) {
 	return data, []byte("nonce"), nil
 }
 
-func (m *MockCryptoService) DecryptSymmetric(data, nonce, key []byte) ([]byte, error) {
+func (m *MockCryptoService) DecryptSymmetric(data, nonce, key []byte, aad []byte) ([]byte, error) {
 	return data, nil
 }
 

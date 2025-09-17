@@ -11,8 +11,8 @@ import (
 
 // CryptoProvider defines the contract for cryptographic operations that the SecretsService needs.
 type CryptoProvider interface {
-	EncryptSymmetric(plaintext, key []byte) ([]byte, []byte, error)
-	DecryptSymmetric(ciphertext, nonce, key []byte) ([]byte, error)
+	EncryptSymmetric(plaintext, key []byte, aad []byte) ([]byte, []byte, error)
+	DecryptSymmetric(ciphertext, nonce, key []byte, aad []byte) ([]byte, error)
 	GetKey() []byte
 }
 
@@ -82,7 +82,7 @@ func (s *SecretsService) SaveOrUpdateSecret(name, value string) error {
 		}
 	}
 
-	encryptedValue, nonce, err := s.crypto.EncryptSymmetric([]byte(value), s.crypto.GetKey())
+	encryptedValue, nonce, err := s.crypto.EncryptSymmetric([]byte(value), s.crypto.GetKey(), nil)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func (s *SecretsService) SaveNewSecret(name, value string) error {
 		}
 	}
 
-	encryptedValue, nonce, err := s.crypto.EncryptSymmetric([]byte(value), s.crypto.GetKey())
+	encryptedValue, nonce, err := s.crypto.EncryptSymmetric([]byte(value), s.crypto.GetKey(), nil)
 	if err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func (s *SecretsService) UpdateSecret(name, newValue string) error {
 		return fmt.Errorf("secret '%s' not found", name)
 	}
 
-	encryptedValue, nonce, err := s.crypto.EncryptSymmetric([]byte(newValue), s.crypto.GetKey())
+	encryptedValue, nonce, err := s.crypto.EncryptSymmetric([]byte(newValue), s.crypto.GetKey(), nil)
 	if err != nil {
 		return err
 	}
@@ -230,7 +230,7 @@ func (s *SecretsService) GetSecretValue(secret *domain.Secret) (string, error) {
 		return "", fmt.Errorf("failed to decode encrypted data: %v", err)
 	}
 
-	plainBytes, err := s.crypto.DecryptSymmetric(encryptedData, currentVersion.Nonce, s.crypto.GetKey())
+	plainBytes, err := s.crypto.DecryptSymmetric(encryptedData, currentVersion.Nonce, s.crypto.GetKey(), nil)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to decrypt secret '%s': ", secret.SecretName), err)
 		return "", err
@@ -249,7 +249,7 @@ func (s *SecretsService) GetSecretValueByVersion(secret *domain.Secret, versionN
 				return "", fmt.Errorf("failed to decode encrypted data for version %d: %v", version.Version, err)
 			}
 
-			plainBytes, err := s.crypto.DecryptSymmetric(encryptedData, version.Nonce, s.crypto.GetKey())
+			plainBytes, err := s.crypto.DecryptSymmetric(encryptedData, version.Nonce, s.crypto.GetKey(), nil)
 			if err != nil {
 				logger.Error(fmt.Sprintf("Failed to decrypt secret version %d for '%s': ", version.Version, secret.SecretName), err)
 				return "", err

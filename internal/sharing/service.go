@@ -30,15 +30,15 @@ type LoggerProvider interface {
 }
 
 type SharingService struct {
-	exportProvidor  ExportProvider
-	importProvidor  ImportProvider
+	exportProvider  ExportProvider
+	importProvider  ImportProvider
 	secretsProvider SecretsProvider
 }
 
-func NewSharingService(exportProvidor ExportProvider, importProvidor ImportProvider, secretsProvider SecretsProvider) *SharingService {
+func NewSharingService(exportProvider ExportProvider, importProvider ImportProvider, secretsProvider SecretsProvider) *SharingService {
 	return &SharingService{
-		exportProvidor:  exportProvidor,
-		importProvidor:  importProvidor,
+		exportProvider:  exportProvider,
+		importProvider:  importProvider,
 		secretsProvider: secretsProvider,
 	}
 }
@@ -62,7 +62,7 @@ func (s *SharingService) ExportSecrets(secrets []domain.Secret, recipientPubKey 
 		return nil, fmt.Errorf("failed to map secrets for export: %w", err)
 	}
 
-	result, err := s.exportProvidor.ExportSecrets(exportSecrets, recipientPubKey, expiryMinutes, SenderMetadata{
+	result, err := s.exportProvider.ExportSecrets(exportSecrets, recipientPubKey, expiryMinutes, SenderMetadata{
 		// Set sender metadata fields
 	})
 	entry := SharingLogEntry{
@@ -90,26 +90,31 @@ func (s *SharingService) ImportSecrets(bundle *SecretExportBundle, recipientPriv
 
 	logger.Info("Beginning import of secrets")
 
-	result, err := s.importProvidor.ImportSecrets(bundle, recipientPrivateKey, recipientEphemeralPubKey)
+	result, err := s.importProvider.ImportSecrets(bundle, recipientPrivateKey, recipientEphemeralPubKey)
 
-	entry := SharingLogEntry{
-		Action:  "import",
-		Status:  "failed",
-		Details: "",
-	}
+	entry := SharingLogEntry{Action: "import", Status: "failed"}
+
 	if result != nil {
 		entry.Timestamp = time.Now().Unix()
 		entry.BundleID = bundle.Payload.ID
 		entry.FileName = bundle.Payload.Name
 		entry.PeerInfo = bundle.Payload.SenderInfo
-		entry.Status = "success"
+		// Mark success only if the provider indicated success and no embedded error
+		if result.Success && result.Error == nil {
+			entry.Status = "success"
+		} else if result.Error != nil {
+			entry.Status = "failed"
+			entry.Details = result.Error.Error()
+		}
 	}
 	if err != nil {
+		// Underlying provider returned an operational error (unexpected)
 		entry.Status = "failed"
 		entry.Details = err.Error()
 	}
 	s.LogEvent(entry)
-	return result, nil
+	// propagate provider error (tests expect method-level err to be nil; import result carries logical errors)
+	return result, err
 }
 
 // LogEvent records an import/export event.

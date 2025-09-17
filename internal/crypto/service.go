@@ -5,6 +5,8 @@ import (
 	"errors"
 	"go-password-manager/internal/config/devicekeys"
 	"go-password-manager/internal/logger"
+
+	"golang.org/x/crypto/curve25519"
 )
 
 // PEMProvider defines methods for PEM encoding/decoding X25519 keys
@@ -13,7 +15,7 @@ type PEMProvider interface {
 	DecodeKeyFromPEM(pemBytes []byte, keyType devicekeys.KeyType) ([]byte, error)
 }
 
-type SecretsEncryptionKeyProvidor interface {
+type SecretsEncryptionKeyProvider interface {
 	LoadOrCreateKey() ([]byte, error)
 	CreateSymmetricKey(keySize int) ([]byte, error)
 }
@@ -21,8 +23,8 @@ type SecretsEncryptionKeyProvidor interface {
 // CryptoService handles encryption and decryption operations.
 type CryptoService struct {
 	key                          []byte
-	PemProvider                  PEMProvider
-	SecretsEncryptionKeyProvidor SecretsEncryptionKeyProvidor
+	pemProvider                  PEMProvider
+	secretsEncryptionKeyProvider SecretsEncryptionKeyProvider
 }
 
 type ConfigProvider interface {
@@ -30,20 +32,20 @@ type ConfigProvider interface {
 }
 
 // NewCryptoService creates a new CryptoService.
-func NewCryptoService(configProvider ConfigProvider, pemProvider PEMProvider, secretsEncryptionKeyProvidor SecretsEncryptionKeyProvidor) (*CryptoService, error) {
-	key, err := secretsEncryptionKeyProvidor.LoadOrCreateKey()
+func NewCryptoService(configProvider ConfigProvider, pemProvider PEMProvider, secretsEncryptionKeyProvider SecretsEncryptionKeyProvider) (*CryptoService, error) {
+	key, err := secretsEncryptionKeyProvider.LoadOrCreateKey()
 	if err != nil {
 		return nil, err
 	}
 	return &CryptoService{key: key,
-		PemProvider:                  pemProvider,
-		SecretsEncryptionKeyProvidor: secretsEncryptionKeyProvidor,
+		pemProvider:                  pemProvider,
+		secretsEncryptionKeyProvider: secretsEncryptionKeyProvider,
 	}, nil
 }
 
 func NewCryptoServiceDefault(configProvider ConfigProvider,
-	secretsEncryptionKeyProvidor SecretsEncryptionKeyProvidor) (*CryptoService, error) {
-	return NewCryptoService(configProvider, &PemUtils{}, secretsEncryptionKeyProvidor)
+	secretsEncryptionKeyProvider SecretsEncryptionKeyProvider) (*CryptoService, error) {
+	return NewCryptoService(configProvider, &PemUtils{}, secretsEncryptionKeyProvider)
 }
 
 // GetKey returns the encryption key.
@@ -52,8 +54,8 @@ func (s *CryptoService) GetKey() []byte {
 }
 
 // Encrypt encrypts data symmetrically and returns base64-encoded ciphertext as bytes.
-func (s *CryptoService) EncryptSymmetric(data, key []byte) ([]byte, []byte, error) {
-	ciphertext, nonce, err := EncryptSymmetric(data, key)
+func (s *CryptoService) EncryptSymmetric(data, key []byte, aad []byte) ([]byte, []byte, error) {
+	ciphertext, nonce, err := EncryptSymmetric(data, key, aad)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -61,8 +63,8 @@ func (s *CryptoService) EncryptSymmetric(data, key []byte) ([]byte, []byte, erro
 }
 
 // Decrypt implements the service.CryptoService interface
-func (s *CryptoService) DecryptSymmetric(ciphertext, nonce, key []byte) ([]byte, error) {
-	return DecryptSymmetric(ciphertext, nonce, key)
+func (s *CryptoService) DecryptSymmetric(ciphertext, nonce, key []byte, aad []byte) ([]byte, error) {
+	return DecryptSymmetric(ciphertext, nonce, key, aad)
 }
 
 // GenerateX25519KeyPairPEM generates a new X25519 key pair and returns PEM-encoded keys
@@ -71,56 +73,41 @@ func (s *CryptoService) GenerateX25519KeyPairPEM() (pubPEM, privPEM []byte, err 
 	if err != nil {
 		return nil, nil, err
 	}
-	pubPEM, err = s.PemProvider.EncodeKeyToPEM(pubKey, devicekeys.KeyTypeX25519Public)
+	pubPEM, err = s.pemProvider.EncodeKeyToPEM(pubKey, devicekeys.KeyTypeX25519Public)
 	if err != nil {
 		return nil, nil, err
 	}
-	privPEM, err = s.PemProvider.EncodeKeyToPEM(privKey, devicekeys.KeyTypeX25519Private)
+	privPEM, err = s.pemProvider.EncodeKeyToPEM(privKey, devicekeys.KeyTypeX25519Private)
 	if err != nil {
 		return nil, nil, err
 	}
 	return pubPEM, privPEM, nil
 }
 
-// EncryptAsymmetricPEM encrypts data using a PEM-encoded public key
-func (s *CryptoService) EncryptAsymmetric(plaintext []byte, pubPEM []byte) ([]byte, error) {
-	pubKey, err := s.PemProvider.DecodeKeyFromPEM(pubPEM, devicekeys.KeyTypeX25519Public)
-	if err != nil {
-		return nil, err
-	}
-	result, err := EncryptAsymmetric(plaintext, pubKey)
-	if err != nil {
-		return nil, err
-	}
-	// If you need nonce, ephemeral keys, etc., use result.{Field}
-
-	return result.Ciphertext, nil
-}
-
-// EncryptAsymmetricFull encrypts data using a PEM-encoded public key and returns the full result object
-func (s *CryptoService) EncryptAsymmetricFull(plaintext []byte, pubPEM []byte) (AsymmetricEncryptResult, error) {
-	pubKey, err := s.PemProvider.DecodeKeyFromPEM(pubPEM, devicekeys.KeyTypeX25519Public)
-	if err != nil {
-		return AsymmetricEncryptResult{}, err
-	}
-	return EncryptAsymmetric(plaintext, pubKey)
-}
-
-// DecryptAsymmetricPEM decrypts data using a PEM-encoded private key
-func (s *CryptoService) DecryptAsymmetric(ciphertext, nonce, privPEM []byte) ([]byte, error) {
-	privKey, err := s.PemProvider.DecodeKeyFromPEM(privPEM, devicekeys.KeyTypeX25519Private)
-	if err != nil {
-		return nil, err
-	}
-	return DecryptAsymmetric(ciphertext, nonce, privKey)
+// DecodeKeyFromPEM exposes PEM decoding for consumers needing raw keys
+func (s *CryptoService) DecodeKeyFromPEM(pemBytes []byte, keyType devicekeys.KeyType) ([]byte, error) {
+	return s.pemProvider.DecodeKeyFromPEM(pemBytes, keyType)
 }
 
 func (s *CryptoService) GenerateKey() ([]byte, error) {
-	return s.SecretsEncryptionKeyProvidor.CreateSymmetricKey(32)
+	return s.secretsEncryptionKeyProvider.CreateSymmetricKey(32)
 }
 
 func (s *CryptoService) ECDH(privateKey []byte, publicKey []byte) ([]byte, error) {
-	return nil, nil
+	if len(privateKey) == 64 { // tolerate extended private key, use first 32 bytes
+		privateKey = privateKey[:curve25519.ScalarSize]
+	}
+	if len(privateKey) != curve25519.ScalarSize {
+		return nil, errors.New("invalid private key length for X25519 ECDH")
+	}
+	if len(publicKey) != curve25519.PointSize {
+		return nil, errors.New("invalid public key length for X25519 ECDH")
+	}
+	shared, err := curve25519.X25519(privateKey, publicKey)
+	if err != nil {
+		return nil, err
+	}
+	return shared, nil
 }
 
 func (c *CryptoService) SignEd25519(data []byte, privKey []byte) ([]byte, error) {
@@ -145,10 +132,4 @@ func (c *CryptoService) GenerateX25519KeyPair() (publicKey []byte, privateKey []
 func (c *CryptoService) GenerateEd25519KeyPair() (publicKey []byte, privateKey []byte, err error) {
 	logger.Debug("Generating X25519 key pair")
 	return GenerateEd25519KeyPair()
-}
-
-// DeriveSymmetricKey logs and calls the HKDF key derivation.
-func (c *CryptoService) DeriveSymmetricKey(sharedSecret, salt, info []byte) ([]byte, error) {
-	logger.Info("Deriving symmetric key with HKDF")
-	return DeriveSymmetricKeyHKDF(sharedSecret, salt, info)
 }

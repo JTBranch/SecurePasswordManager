@@ -3,16 +3,14 @@ package sharing
 import "go-password-manager/internal/domain"
 
 type SecretExportPayload struct {
-	ID                    string         // Unique identifier for the bundle
-	Name                  string         // Human-readable name for the bundle
-	EncryptedSecrets      []byte         // The encrypted secrets data
-	EncryptedSymmetricKey []byte         // Symmetric key, encrypted with recipient's public key
-	SecretsNonce          []byte         // Nonce used for encryption of the secrets
-	KeyNonce              []byte         // Nonce used for encryption of the shared key
-	Timestamp             int64          // Unix timestamp when bundle was created
-	ExpiresAt             int64          // Unix timestamp when bundle expires
-	SenderInfo            SenderMetadata // Info about the sender (optional)
-	EphemeralPublicKey    []byte         // Sender's ephemeral public key
+	ID               string         // Unique identifier for the bundle
+	Name             string         // Human-readable name for the bundle
+	EncryptedSecrets []byte         // The encrypted secrets data (AES-GCM)
+	SecretsNonce     []byte         // Nonce used for encryption of the secrets
+	SymmetricKeyBox  []byte         // Combined: version|ephemeral|nonce|ciphertext of symmetric key
+	Timestamp        int64          // Unix timestamp when bundle was created
+	ExpiresAt        int64          // Unix timestamp when bundle expires
+	SenderInfo       SenderMetadata // Info about the sender (optional)
 }
 
 // SecretExportBundle represents the encrypted package to be shared.
