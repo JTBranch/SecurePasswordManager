@@ -1,6 +1,7 @@
 package secretkeymetadata
 
 import (
+	"bytes"
 	"encoding/json"
 	"go-password-manager/internal/logger"
 	"os"
@@ -67,6 +68,15 @@ func getSecretKeyMetadataFromFile(filePath string) (*SecretsKeyMetadataBundle, e
 	}
 	var config SecretsKeyMetadataBundle
 	if err := json.Unmarshal(data, &config); err != nil {
+		// Handle legacy/corrupted timezone format containing '+s' (e.g. '+s01:00')
+		if bytes.Contains(data, []byte("+s")) {
+			fixed := bytes.ReplaceAll(data, []byte("+s"), []byte("+"))
+			if err2 := json.Unmarshal(fixed, &config); err2 == nil {
+				// Best-effort write back sanitized file (ignore error)
+				_ = os.WriteFile(filePath, fixed, 0600)
+				return &config, nil
+			}
+		}
 		return nil, err
 	}
 	return &config, nil
@@ -97,6 +107,9 @@ func (svc *SecretKeyMetadataFileService) UpdateCurrentKey(newKey SecretsEncrypti
 		)
 	}
 	svc.secretsKeyMetadataBundle.CurrentKey = &newKey
-	svc.saveMetadataToFile()
+	err := svc.saveMetadataToFile()
+	if err != nil {
+		logger.Error("Error saving secret key metadata to file", err)
+	}
 	return &svc.secretsKeyMetadataBundle
 }

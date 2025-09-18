@@ -44,7 +44,10 @@ var outputDir = filepath.Join("tmp", "output", "test-reports")
 
 func init() {
 	// Ensure output directory exists and is empty
-	os.MkdirAll(outputDir, 0755)
+	err := os.MkdirAll(outputDir, 0755)
+	if err != nil {
+		log.Fatalf("Failed to create output directory: %v", err)
+	}
 	entries, err := os.ReadDir(outputDir)
 	if err == nil {
 		for _, entry := range entries {

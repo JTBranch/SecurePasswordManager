@@ -159,8 +159,8 @@ func (m *DeviceKeyManager) GetEncryptionDeviceKey() (*DeviceKey, error) {
 			return nil, genErr
 		}
 		m.deviceKeyConfig.CurrentKey.EncryptionKey = *cryptoToConfigKey(newKey, 1)
-		m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
-		return newKey, nil
+		err = m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
+		return newKey, err
 	}
 
 	decodedPriv, err := m.pemProvider.DecodeKeyFromPEM([]byte(key), devicekeys.KeyTypeX25519Private)
@@ -192,8 +192,8 @@ func (m *DeviceKeyManager) GetSigningDeviceKey() (*DeviceKey, error) {
 			return nil, genErr
 		}
 		m.deviceKeyConfig.CurrentKey.SigningKey = *cryptoToConfigKey(newKey, 1)
-		m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
-		return newKey, nil
+		err = m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
+		return newKey, err
 	}
 
 	decodedPriv, err := m.pemProvider.DecodeKeyFromPEM([]byte(key), devicekeys.KeyTypeEd25519Private)

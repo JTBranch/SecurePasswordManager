@@ -162,5 +162,40 @@ help:
 	@echo ""
 	@echo "Utilities:"
 	@echo "  clean            - Clean build artifacts"
+	@echo "  dev-setup        - Install developer toolchain (protoc, plugins)"
 
-.PHONY: dev build test test-all test-reports test-unit test-integration test-e2e ci-local ci-strict ci-reports fmt lint version release-patch release-minor release-major release-pre clean help
+dev-setup:
+	@echo "🔧 Checking protoc..."
+	@if ! command -v protoc >/dev/null 2>&1; then \
+		PROTOC_VERSION=28.2; \
+		UNAME_S=$$(uname -s); \
+		UNAME_M=$$(uname -m); \
+		case "$$UNAME_S" in Darwin) OS=osx ;; Linux) OS=linux ;; *) echo "Unsupported OS $$UNAME_S"; exit 1 ;; esac; \
+		case "$$UNAME_M" in x86_64) ARCH=x86_64 ;; arm64|aarch64) ARCH=aarch_64 ;; *) echo "Unsupported arch $$UNAME_M"; exit 1 ;; esac; \
+		if command -v brew >/dev/null 2>&1; then echo "Installing protobuf via brew"; brew install protobuf || true; fi; \
+		if ! command -v protoc >/dev/null 2>&1; then \
+			echo "Attempting direct download of protoc $$PROTOC_VERSION for $$OS-$$ARCH"; \
+			URL="https://github.com/protocolbuffers/protobuf/releases/download/v$$PROTOC_VERSION/protoc-$$PROTOC_VERSION-$$OS-$$ARCH.zip"; \
+			TMP=$$(mktemp -d); \
+			curl -LsS $$URL -o $$TMP/protoc.zip || { echo "Download failed: $$URL"; exit 1; }; \
+			unzip -q $$TMP/protoc.zip -d $$TMP/out; \
+			mkdir -p .tools/protoc; cp -R $$TMP/out/* .tools/protoc/; \
+			chmod +x .tools/protoc/bin/protoc; \
+			echo "Installed local protoc to .tools/protoc/bin"; \
+		fi; \
+		if ! command -v protoc >/dev/null 2>&1; then PATH=$$(pwd)/.tools/protoc/bin:$$PATH protoc --version || true; fi; \
+	else echo "protoc already installed"; fi
+	@if ! command -v protoc >/dev/null 2>&1; then \
+		if [ -x .tools/protoc/bin/protoc ]; then \
+			echo "Using locally downloaded protoc"; \
+		else \
+			echo "❌ protoc still missing. Install manually: https://github.com/protocolbuffers/protobuf/releases"; exit 1; \
+		fi; \
+	fi
+	@echo "🔧 Installing protoc-gen-go plugin..."
+	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	@echo "🚀 Generating protobuf code..."
+	@PATH=$$(pwd)/.tools/protoc/bin:$$PATH go generate ./internal/transport/proto
+	@echo "✅ Dev setup complete"
+
+.PHONY: dev build test test-all test-reports test-unit test-integration test-e2e ci-local ci-strict ci-reports fmt lint version release-patch release-minor release-major release-pre clean help dev-setup

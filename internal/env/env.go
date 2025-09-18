@@ -80,12 +80,11 @@ func Load() (*Config, error) {
 }
 
 // Get returns the global config (must call Load() first)
-func Get() *Config {
+func Get() (*Config, error) {
 	if globalConfig == nil {
-		// Auto-load if not already loaded
-		Load()
+		return Load()
 	}
-	return globalConfig
+	return globalConfig, nil
 }
 
 // IsProduction returns true if running in production mode
@@ -123,7 +122,10 @@ func (c *Config) GetSecretsFilePath() string {
 		return DefaultSecretsFileName // Fallback
 	}
 	appConfigDir := filepath.Join(configDir, c.AppName)
-	os.MkdirAll(appConfigDir, 0700)
+	err = os.MkdirAll(appConfigDir, 0700)
+	if err != nil {
+		return DefaultSecretsFileName // Fallback
+	}
 	return filepath.Join(appConfigDir, DefaultSecretsFileName)
 }
 

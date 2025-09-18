@@ -17,9 +17,8 @@ import (
 )
 
 var (
-	version = "development"
-	commit  = "none"
-	date    = "unknown"
+	commit = "none"
+	date   = "unknown"
 )
 
 func main() {

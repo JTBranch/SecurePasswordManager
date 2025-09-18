@@ -71,7 +71,7 @@ func TestKeyBoxTruncated(t *testing.T) {
 	box, _ := WrapKeyBox(sym, pub, testAAD)
 	for i := 0; i < len(box); i++ {
 		if _, err := UnwrapKeyBox(box[:i], priv, testAAD); err == nil {
-			// expected failure
+			t.Fatalf("expected error with truncated box")
 		}
 	}
 }

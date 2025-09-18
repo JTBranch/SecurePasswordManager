@@ -24,6 +24,7 @@ type IntegrationTestSuite struct {
 	BuildConfig          *buildconfig.Config
 	ConfigService        *config.ConfigService
 	ExportService        *sharing.ExportService
+	ImportService        *sharing.ImportService
 	SharingService       *sharing.SharingService
 	PemUtils             *crypto.PemUtils
 	DeviceKeyManager     *crypto.DeviceKeyManager
@@ -97,11 +98,11 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 		suite.Reporter.T().Fatalf("Failed to create Device Key Manager: %v", err)
 	}
 
-	importProvider := sharing.NewImportService(suite.CryptoService, suite.DeviceKeyManager, suite.SecretsService)
+	suite.ImportService = sharing.NewImportService(suite.CryptoService, suite.DeviceKeyManager, suite.SecretsService)
 
 	suite.ExportService = sharing.NewExportService(suite.CryptoService, suite.DeviceKeyManager)
 
-	suite.SharingService = sharing.NewSharingService(suite.ExportService, importProvider, suite.SecretsService)
+	suite.SharingService = sharing.NewSharingService(suite.ExportService, suite.ImportService, suite.SecretsService)
 }
 
 // SetTestDataDir sets the test data directory (for reusing existing test data)

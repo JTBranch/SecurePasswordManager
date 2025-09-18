@@ -5,11 +5,13 @@ go 1.23.0
 require (
 	fyne.io/fyne/v2 v2.6.2
 	github.com/google/uuid v1.6.0
+	github.com/grandcat/zeroconf v1.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.11.1
 	github.com/zalando/go-keyring v0.2.6
 	go.uber.org/zap v1.26.0
 	golang.org/x/crypto v0.41.0
+	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -17,6 +19,7 @@ require (
 	al.essio.dev/pkg/shellescape v1.5.1 // indirect
 	fyne.io/systray v1.11.0 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/danieljoos/wincred v1.2.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fredbi/uri v1.1.0 // indirect
@@ -34,6 +37,7 @@ require (
 	github.com/hack-pad/safejs v0.1.0 // indirect
 	github.com/jeandeaual/go-locale v0.0.0-20250612000132-0ef82f21eade // indirect
 	github.com/jsummers/gobmp v0.0.0-20230614200233-a9de23ed2e25 // indirect
+	github.com/miekg/dns v1.1.27 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/nicksnyder/go-i18n/v2 v2.5.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

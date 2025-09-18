@@ -76,7 +76,11 @@ func (m *SecretsEncryptionKeyManager) createKey() ([]byte, error) {
 		keySize = 32 // Default to AES-256
 	}
 	createdKey, err := m.CreateSymmetricKey(keySize)
-	m.keyringProvider.Set(KeyringSecretsEncryption, m.keyUUID, string(createdKey))
+	if err != nil {
+		logger.Error("Failed to create symetric key", err)
+		return nil, err
+	}
+	err = m.keyringProvider.Set(KeyringSecretsEncryption, m.keyUUID, string(createdKey))
 	now := time.Now()
 	m.secretsKeyMetadataProvider.UpdateCurrentKey(secretkeymetadata.SecretsEncryptionKeyMetadata{
 		UUID:         m.keyUUID,
@@ -103,7 +107,7 @@ func (m *SecretsEncryptionKeyManager) RotateKey() ([]byte, error) {
 			logger.Error("Failed to generate a new Encryption key", err)
 			return nil, err
 		}
-		m.keyringProvider.Set(KeyringSecretsEncryption+"-archived", oldUUID, string(oldKey))
-		return newKey, nil
+		err = m.keyringProvider.Set(KeyringSecretsEncryption+"-archived", oldUUID, string(oldKey))
+		return newKey, err
 	}
 }
