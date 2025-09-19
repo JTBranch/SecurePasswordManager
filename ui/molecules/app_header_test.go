@@ -25,9 +25,7 @@ func TestAppHeaderRender(t *testing.T) {
 				OnThemeChange:  func(string) {},
 			}
 			header := AppHeader(props, mockWin)
-			if header == nil {
-				t.Fatal("Expected AppHeader to return non-nil object")
-			}
+			tc.Assert.NotNil(header, "Expected AppHeader to return non-nil object")
 		})
 	})
 }

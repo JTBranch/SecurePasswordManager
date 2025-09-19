@@ -14,6 +14,7 @@ import (
 
 	buildconfig "go-password-manager/internal/config/buildconfig"
 	"go-password-manager/internal/service"
+	"go-password-manager/ui"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
@@ -64,10 +65,10 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 	// Reset cached build config so tests pick up the test environment and in-memory flags
 	buildconfig.ResetCacheForTest()
 
-	// Create test application
+	// Create test application (headless) and window for UI interaction
 	suite.app = test.NewApp()
-	suite.Window = test.NewWindow(nil)
-	suite.Window.Resize(fyne.NewSize(1200, 800))
+	testWin := test.NewWindow(nil)
+	testWin.Resize(fyne.NewSize(1200, 800))
 
 	// Initialize services
 	buildCfg, err := buildconfig.Load()
@@ -87,6 +88,10 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 	deviceKeyFileSvc := devicekeys.NewDeviceKeyFileService(buildCfg)
 	suite.DeviceKeyManager, err = crypto.NewDeviceKeyManager(cryptoService, &crypto.PemUtils{}, deviceKeyFileSvc)
 	require.NoError(suite.t, err, "Failed to create device key manager")
+	// Build the UI app backed by the test app and window to allow real UI interactions via fyne/test
+	uiApp := ui.NewAppWithFyne(suite.app, testWin, buildCfg, suite.SecretsService, nil)
+	uiApp.Start()
+	suite.Window = testWin
 	// In-memory keyring & device key storage now configured within constructors based on build configuration.
 }
 

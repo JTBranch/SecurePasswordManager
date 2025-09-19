@@ -18,5 +18,7 @@ func SecretName(secret domain.Secret, onClick func(), onDelete func()) fyne.Canv
 	// Make name button expand to fill available space
 	nameBtn.Resize(fyne.NewSize(300, nameBtn.MinSize().Height)) // Set a larger width
 
+	// no test registration here; tests will locate buttons via traversal
+
 	return container.NewBorder(nil, nil, nil, deleteBtn, nameBtn)
 }

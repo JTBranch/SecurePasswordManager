@@ -25,7 +25,6 @@ func (headerLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	}
 	menuBtnMin := objects[0].MinSize()
 	createBtnMin := objects[2].MinSize()
-
 	// Calculate available width for search box
 	searchWidth := size.Width - menuBtnMin.Width - createBtnMin.Width - 2*buttonSpacing
 
@@ -35,11 +34,9 @@ func (headerLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	// Position menu button (far left)
 	objects[0].Resize(menuBtnMin)
 	objects[0].Move(fyne.NewPos(0, float32(btnY)))
-
 	// Position search box (fills space between buttons)
 	objects[1].Resize(fyne.NewSize(searchWidth, size.Height))
 	objects[1].Move(fyne.NewPos(menuBtnMin.Width+buttonSpacing, 0))
-
 	// Position create button (far right)
 	objects[2].Resize(createBtnMin)
 	objects[2].Move(fyne.NewPos(size.Width-createBtnMin.Width, float32(btnY)))

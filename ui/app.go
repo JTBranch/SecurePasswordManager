@@ -31,9 +31,23 @@ const (
 
 // NewApp creates a new application instance
 func NewApp(buildCfg *buildconfig.Config, secretsService *service.SecretsService, transferSvc *service.SharingTransferService) *App {
-	fyneApp := app.New()
+
+	return NewAppWithFyne(app.New(), nil, buildCfg, secretsService, transferSvc)
+}
+
+// NewAppWithFyne creates a new application instance using the provided fyne.App and optional window.
+// Pass a test app and window when running headless tests.
+func NewAppWithFyne(fyneApp fyne.App, win fyne.Window, buildCfg *buildconfig.Config, secretsService *service.SecretsService, transferSvc *service.SharingTransferService) *App {
+	if fyneApp == nil {
+		fyneApp = app.New()
+	}
 	fyneApp.Settings().SetTheme(&themes.LightTheme{})
-	window := fyneApp.NewWindow(buildCfg.Application.Name)
+	var window fyne.Window
+	if win == nil {
+		window = fyneApp.NewWindow(buildCfg.Application.Name)
+	} else {
+		window = win
+	}
 
 	// Load legacy config service for window size persistence
 	configService, err := config.NewConfigService(buildCfg)
@@ -62,8 +76,8 @@ func NewApp(buildCfg *buildconfig.Config, secretsService *service.SecretsService
 	return &App{fyneApp: fyneApp, window: window, configService: configService, buildconfig: buildCfg, secretsService: secretsService, transferSvc: transferSvc}
 }
 
-// Run starts the application
-func (a *App) Run() {
+// Start shows the window and initializes the UI without blocking (useful for tests).
+func (a *App) Start() {
 	var showMain func()
 	showShare := func() {
 		a.currentPage = "share"
@@ -83,5 +97,11 @@ func (a *App) Run() {
 		}
 	})
 
+	a.window.Show()
+}
+
+// Run starts the application
+func (a *App) Run() {
+	a.Start()
 	a.window.ShowAndRun()
 }

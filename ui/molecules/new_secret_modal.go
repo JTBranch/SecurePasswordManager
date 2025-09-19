@@ -37,6 +37,8 @@ func NewSecretModal(win fyne.Window, secretsService *service.SecretsService, onS
 		gap,
 	)
 
+	// No test registration here; tests will locate entries via traversal
+
 	dialog.NewCustomConfirm(
 		"Create Secret",
 		"Create",

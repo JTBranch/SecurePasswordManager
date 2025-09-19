@@ -113,6 +113,10 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 	}
 
 	header := molecules.AppHeader(props, win)
+	// register the create button from the header so tests can find it deterministically
+	if c := findCreateButtonInHeader(header); c != nil {
+		registerCreateButton(c)
+	}
 	updateList()
 
 	split := container.NewHSplit(listBox, detailBox)
@@ -126,6 +130,51 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 		container.NewHSplit(listBox, detailBox),
 	)
 	return content
+}
+
+// test registration for create button
+var registeredCreateButton *widget.Button
+
+func registerCreateButton(b *widget.Button) {
+	registeredCreateButton = b
+}
+
+func GetRegisteredCreateButton() *widget.Button {
+	return registeredCreateButton
+}
+
+// findCreateButtonInHeader attempts to locate the create button inside header container
+func findCreateButtonInHeader(header fyne.CanvasObject) *widget.Button {
+	if header == nil {
+		return nil
+	}
+	var found *widget.Button
+	// local traversal helper
+	var traverseLocal func(fyne.CanvasObject, func(fyne.CanvasObject))
+	traverseLocal = func(obj fyne.CanvasObject, fn func(fyne.CanvasObject)) {
+		if obj == nil {
+			return
+		}
+		fn(obj)
+		type hasObjects interface{ Objects() []fyne.CanvasObject }
+		if c, ok := obj.(hasObjects); ok {
+			for _, child := range c.Objects() {
+				traverseLocal(child, fn)
+			}
+		}
+	}
+
+	traverseLocal(header, func(o fyne.CanvasObject) {
+		if found != nil {
+			return
+		}
+		if b, ok := o.(*widget.Button); ok {
+			if containsIgnoreCase(b.Text, "Create") || containsIgnoreCase(b.Text, "New") {
+				found = b
+			}
+		}
+	})
+	return found
 }
 
 // Helper for case-insensitive substring search
