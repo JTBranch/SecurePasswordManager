@@ -20,7 +20,11 @@ import (
 
 var secretsService *service.SecretsService
 
-func init() {
+// ensureServicesInitialized lazily initializes the secrets service and related dependencies.
+func ensureServicesInitialized() {
+	if secretsService != nil {
+		return
+	}
 	buildCfg, err := buildconfig.Load()
 	if err != nil {
 		log.Fatalf("Failed to load build config: %v", err)
@@ -52,6 +56,7 @@ func init() {
 // CreateMainContent creates the main content of the window, including the secret form and secret list
 func CreateMainContent(window fyne.Window) fyne.CanvasObject {
 	logger.Debug("Creating main content for the UI")
+	ensureServicesInitialized()
 	fileData, _ := secretsService.LoadAllSecrets()
 	var selectedIdx int = -1
 
