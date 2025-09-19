@@ -82,6 +82,13 @@ type TestingConfig struct {
 
 // findProjectRoot finds the root of the project by looking for go.mod
 func findProjectRoot() (string, error) {
+	// Allow overriding the project root via environment variable (useful in containers).
+	if env := os.Getenv("GO_PASSWORD_MANAGER_PROJECT_ROOT"); env != "" {
+		if _, err := os.Stat(filepath.Join(env, "go.mod")); err == nil {
+			return env, nil
+		}
+	}
+
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", err

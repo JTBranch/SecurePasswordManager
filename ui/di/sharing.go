@@ -12,6 +12,7 @@ import (
 	"go-password-manager/internal/sharing"
 	"go-password-manager/internal/storage"
 	"go-password-manager/internal/transport"
+	"os"
 	"strconv"
 	"time"
 )
@@ -78,7 +79,17 @@ func BuildSharing(buildCfg *buildconfig.Config) (*SharingBundle, error) {
 	sigKey, sigErr := deviceKeyMgr.GetSigningDeviceKey()
 	var desc transport.DeviceDescriptor
 	if encErr == nil && sigErr == nil {
-		desc = transport.DeviceDescriptor{DeviceID: encKey.ID, UserID: deviceKeyMgr.GetAppUser(), DeviceName: deviceKeyMgr.GetDeviceName(), Ed25519Pub: sigKey.PublicKey, X25519Pub: encKey.PublicKey}
+		// Allow environment overrides for containerized runs so advertised address is reachable.
+		advertised := os.Getenv("VPM_ADVERTISED_ADDR")
+		instanceName := os.Getenv("VPM_INSTANCE_NAME")
+		deviceName := deviceKeyMgr.GetDeviceName()
+		if instanceName != "" {
+			deviceName = instanceName
+		}
+		desc = transport.DeviceDescriptor{DeviceID: encKey.ID, UserID: deviceKeyMgr.GetAppUser(), DeviceName: deviceName, Ed25519Pub: sigKey.PublicKey, X25519Pub: encKey.PublicKey}
+		if advertised != "" {
+			desc.LastAddr = advertised
+		}
 	}
 	exp := sharing.NewExportService(cryptoSvc, deviceKeyMgr)
 	imp := sharing.NewImportService(cryptoSvc, deviceKeyMgr, secretsSvc)

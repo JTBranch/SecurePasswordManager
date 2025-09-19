@@ -89,6 +89,11 @@ func (s *SharingService) ExportSecrets(secrets []domain.Secret, recipientPubKey 
 func (s *SharingService) ImportSecrets(bundle *SecretExportBundle, recipientPrivateKey []byte, recipientEphemeralPubKey []byte) (*SecretImportResult, error) {
 
 	logger.Info("Beginning import of secrets")
+	if bundle != nil {
+		logger.Info(fmt.Sprintf("SharingService.ImportSecrets: delegating import bundleID=%s sender=%x", bundle.Payload.ID, bundle.Payload.SenderInfo.SigningPublicKey))
+	} else {
+		logger.Info("SharingService.ImportSecrets: delegating import with nil bundle")
+	}
 
 	result, err := s.importProvider.ImportSecrets(bundle, recipientPrivateKey, recipientEphemeralPubKey)
 

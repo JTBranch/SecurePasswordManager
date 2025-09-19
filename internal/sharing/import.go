@@ -63,6 +63,13 @@ func (s *ImportService) UseFileReplayStore(path string) error {
 
 // ImportSecrets imports and decrypts secrets from a SecretExportBundle using the recipient's private key.
 func (s *ImportService) ImportSecrets(bundle *SecretExportBundle, recipientPrivateKey []byte, recipientEphemeralPubKey []byte) (*SecretImportResult, error) {
+	if bundle == nil {
+		logger.Warn("ImportService.ImportSecrets called with nil bundle")
+		return &SecretImportResult{ImportedSecretsCount: 0, Success: false, Error: fmt.Errorf("nil bundle")}, nil
+	}
+	// Log entry for observability during runtime/share flows
+	logger.Info(fmt.Sprintf("ImportService.ImportSecrets invoked: bundleID=%s senderSigningPub=%x", bundle.Payload.ID, bundle.Payload.SenderInfo.SigningPublicKey))
+
 	// Check for bundle expiry
 	if bundle.Payload.ExpiresAt > 0 && bundle.Payload.ExpiresAt < (time.Now().Unix()) {
 		logger.Warn("Bundle has expired, ending import")
