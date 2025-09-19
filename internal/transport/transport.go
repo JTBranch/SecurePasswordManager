@@ -31,6 +31,15 @@ type BundleTransport interface {
 	Close() error
 }
 
+// DiscoverableTransport optionally supports discovering nearby devices via
+// network broadcast / directory mechanisms. Implementations should return
+// rapidly with a snapshot (best-effort). Continuous discovery can be modeled
+// by polling from the UI layer when needed.
+type DiscoverableTransport interface {
+	BundleTransport
+	Discover(ctx context.Context, limit int) ([]DeviceDescriptor, error)
+}
+
 // InboundBundle represents a received bundle plus the sending device metadata.
 type InboundBundle struct {
 	From   DeviceDescriptor

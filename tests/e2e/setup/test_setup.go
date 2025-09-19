@@ -2,6 +2,7 @@ package setup
 
 import (
 	"fmt"
+	"go-password-manager/internal/config/devicekeys"
 	config "go-password-manager/internal/config/runtimeconfig"
 	"go-password-manager/internal/config/secretkeymetadata"
 	"go-password-manager/internal/crypto"
@@ -26,12 +27,13 @@ const (
 
 // E2ETestSuite holds the test environment setup
 type E2ETestSuite struct {
-	testDataDir    string
-	originalEnv    string
-	app            fyne.App
-	Window         fyne.Window
-	SecretsService *service.SecretsService
-	t              *testing.T
+	testDataDir      string
+	originalEnv      string
+	app              fyne.App
+	Window           fyne.Window
+	SecretsService   *service.SecretsService
+	DeviceKeyManager *crypto.DeviceKeyManager
+	t                *testing.T
 }
 
 // NewE2ETestSuite creates a new E2E test suite
@@ -56,8 +58,11 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 
 	// Set environment to use test directory
 	suite.originalEnv = os.Getenv("GO_PASSWORD_MANAGER_ENV")
-	os.Setenv("GO_PASSWORD_MANAGER_ENV", "e2e-test")
+	os.Setenv("GO_PASSWORD_MANAGER_ENV", "test")
 	os.Setenv("TEST_DATA_DIR", suite.testDataDir)
+
+	// Reset cached build config so tests pick up the test environment and in-memory flags
+	buildconfig.ResetCacheForTest()
 
 	// Create test application
 	suite.app = test.NewApp()
@@ -79,6 +84,10 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 	require.NoError(suite.t, err, "Failed to get secrets file path")
 	storageService := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "e2e-user")
 	suite.SecretsService = service.NewSecretsService(cryptoService, storageService)
+	deviceKeyFileSvc := devicekeys.NewDeviceKeyFileService(buildCfg)
+	suite.DeviceKeyManager, err = crypto.NewDeviceKeyManager(cryptoService, &crypto.PemUtils{}, deviceKeyFileSvc)
+	require.NoError(suite.t, err, "Failed to create device key manager")
+	// In-memory keyring & device key storage now configured within constructors based on build configuration.
 }
 
 // SetTestDataDir sets the test data directory (for reusing existing test data)
@@ -110,12 +119,19 @@ func (suite *E2ETestSuite) Cleanup() {
 	os.Unsetenv("TEST_DATA_DIR")
 
 	// Reload environment configuration to reset to defaults
+	buildconfig.ResetCacheForTest()
 	buildconfig.Load()
 
 	// Clean up test directory
 	err := os.RemoveAll(suite.testDataDir)
 	if err != nil {
 		suite.t.Logf("Warning: Failed to clean up test directory %s: %v", suite.testDataDir, err)
+	}
+
+	// Attempt to delete any device keys we created during the test run to avoid polluting the user's keychain.
+	if suite.DeviceKeyManager != nil {
+		_ = suite.DeviceKeyManager.DeleteEncryptionDeviceKey()
+		_ = suite.DeviceKeyManager.DeleteSigningDeviceKey()
 	}
 }
 

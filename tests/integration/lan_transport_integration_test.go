@@ -8,12 +8,14 @@ import (
 	rep "go-password-manager/tests/reporting"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func buildLan(t *testing.T, dev transport.DeviceDescriptor) transport.BundleTransport {
 	tr, err := transport.Build(context.Background(), "lan", map[string]any{"listen_addr": ":0", "discovery": false}, dev, transport.Dependencies{Registry: transport.NewInMemoryRegistry()})
 	if err != nil {
-		t.Fatalf("build %s: %v", dev.DeviceID, err)
+		require.NoError(t, err, "build %s: %v", dev.DeviceID, err)
 	}
 	return tr
 }
@@ -47,26 +49,16 @@ func TestLanSendReceive(t *testing.T) {
 		}()
 
 		receipt, err := trA.Send(ctx, bundle, targetB)
-		if err != nil {
-			t.Fatalf("send failed: %v", err)
-		}
-		if receipt.BundleID != bundle.Payload.ID {
-			t.Fatalf("expected receipt bundle id %s got %s", bundle.Payload.ID, receipt.BundleID)
-		}
-		if receipt.Attempt != 1 {
-			t.Fatalf("expected delivery in 1 attempt, got %d", receipt.Attempt)
-		}
+		require.NoError(t, err, "send failed: %v", err)
+		require.Equal(t, bundle.Payload.ID, receipt.BundleID, "expected receipt bundle id %s got %s", bundle.Payload.ID, receipt.BundleID)
+		require.Equal(t, 1, receipt.Attempt, "expected delivery in 1 attempt, got %d", receipt.Attempt)
 
 		select {
 		case ib := <-recvCh:
-			if ib.Bundle.Payload.ID != bundle.Payload.ID {
-				t.Fatalf("mismatched bundle id")
-			}
-			if ib.Envelope == nil {
-				t.Fatalf("expected inbound envelope metadata")
-			}
+			require.Equal(t, bundle.Payload.ID, ib.Bundle.Payload.ID, "mismatched bundle id")
+			require.NotNil(t, ib.Envelope, "expected inbound envelope metadata")
 		case <-ctx.Done():
-			t.Fatalf("timeout waiting for receive")
+			require.FailNow(t, "timeout waiting for receive")
 		}
 	})
 }

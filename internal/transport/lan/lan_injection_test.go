@@ -4,6 +4,8 @@ import (
 	"context"
 	"go-password-manager/internal/transport"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type fakeKeyGen struct{ calls int }
@@ -38,16 +40,10 @@ func TestKeyGenInjectionEnsuresDevicePub(t *testing.T) {
 	kg := &fakeKeyGen{}
 	local := transport.DeviceDescriptor{DeviceID: "dev-keygen", DeviceName: "KeyGen"}
 	trGeneric, err := transport.Build(context.Background(), "lan", map[string]any{"listen_addr": ":0"}, local, transport.Dependencies{Registry: transport.NewInMemoryRegistry(), KeyGen: kg})
-	if err != nil {
-		t.Fatalf("build failed: %v", err)
-	}
+	require.NoError(t, err, "build failed: %v", err)
 	tr := trGeneric.(*Transport)
-	if len(tr.local.Ed25519Pub) != 32 {
-		t.Fatalf("expected ed25519 pub set, got %d", len(tr.local.Ed25519Pub))
-	}
-	if kg.calls == 0 {
-		t.Fatalf("expected keygen to be called")
-	}
+	require.Equal(t, 32, len(tr.local.Ed25519Pub), "expected ed25519 pub set, got %d", len(tr.local.Ed25519Pub))
+	require.NotZero(t, kg.calls, "expected keygen to be called")
 	_ = tr.Close()
 }
 
@@ -56,11 +52,7 @@ func TestAdvertisementInjectionStartCalled(t *testing.T) {
 	adv := &stubAdv{}
 	local := transport.DeviceDescriptor{DeviceID: "dev-adv", DeviceName: "Adv"}
 	trGeneric, err := transport.Build(context.Background(), "lan", map[string]any{"listen_addr": ":0", "discovery": true}, local, transport.Dependencies{Registry: transport.NewInMemoryRegistry(), Advertisement: adv})
-	if err != nil {
-		t.Fatalf("build failed: %v", err)
-	}
-	if adv.starts != 1 {
-		t.Fatalf("expected advertisement start once, got %d", adv.starts)
-	}
+	require.NoError(t, err, "build failed: %v", err)
+	require.Equal(t, 1, adv.starts, "expected advertisement start once, got %d", adv.starts)
 	_ = trGeneric.Close()
 }

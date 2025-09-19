@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/grandcat/zeroconf"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBrowserProcessEntry(t *testing.T) {
@@ -15,23 +16,13 @@ func TestBrowserProcessEntry(t *testing.T) {
 	entry.AddrIPv4 = []net.IP{net.ParseIP("127.0.0.1")}
 	b.processEntry(entry)
 	got := b.List()
-	if len(got) != 1 {
-		t.Fatalf("expected 1 entry got %d", len(got))
-	}
-	if got[0].DeviceID != "devXYZ" {
-		t.Fatalf("unexpected device id: %s", got[0].DeviceID)
-	}
-	if got[0].LastAddr == "" {
-		t.Fatalf("expected LastAddr populated")
-	}
+	require.Len(t, got, 1, "expected 1 entry got %d", len(got))
+	require.Equal(t, "devXYZ", got[0].DeviceID, "unexpected device id: %s", got[0].DeviceID)
+	require.NotEmpty(t, got[0].LastAddr, "expected LastAddr populated")
 	// Simulate change in port (address update)
 	entry.Port = 4343
 	b.processEntry(entry)
 	got2 := b.List()
-	if got2[0].LastAddr == got[0].LastAddr {
-		t.Fatalf("expected addr change detected")
-	}
-	if got2[0].LastSeenAt.Before(got[0].LastSeenAt) {
-		t.Fatalf("expected updated LastSeenAt")
-	}
+	require.NotEqual(t, got2[0].LastAddr, got[0].LastAddr, "expected addr change detected")
+	require.False(t, got2[0].LastSeenAt.Before(got[0].LastSeenAt), "expected updated LastSeenAt")
 }

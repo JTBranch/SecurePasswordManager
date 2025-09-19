@@ -27,6 +27,12 @@ type SecretsEncryptionKeyManager struct {
 	keySize                    int
 }
 
+// UsingInMemoryKeyring reports whether the manager is currently configured to use the in-memory keyring provider.
+func (m *SecretsEncryptionKeyManager) UsingInMemoryKeyring() bool {
+	_, ok := m.keyringProvider.(*InMemoryKeyringProvider)
+	return ok
+}
+
 func NewSecretsEncryptionKeyManager(configProvider ConfigProvider,
 	secretsKeyMetadataProvider SecretsKeyMetadataProvider) (*SecretsEncryptionKeyManager, error) {
 	keyUUID := configProvider.GetKeyUUID()
@@ -34,13 +40,19 @@ func NewSecretsEncryptionKeyManager(configProvider ConfigProvider,
 	if err != nil {
 		return nil, err
 	}
-	return &SecretsEncryptionKeyManager{
+	mgr := &SecretsEncryptionKeyManager{
 		configProvider:             configProvider,
 		keyringProvider:            &DefaultkeyringProvider{},
 		secretsKeyMetadataProvider: secretsKeyMetadataProvider,
 		keyUUID:                    keyUUID,
 		keySize:                    buildCfg.Security.Encryption.KeySize,
-	}, nil
+	}
+	// Honor build configuration for in-memory keyring usage (tests/dev isolation)
+	if buildCfg.Security.Keyring.InMemory {
+		logger.Debug("Using in-memory keyring")
+		mgr.keyringProvider = NewInMemoryKeyring()
+	}
+	return mgr, nil
 }
 
 func (m *SecretsEncryptionKeyManager) SetKeyringProvider(keyringProvider KeyringProvider) {

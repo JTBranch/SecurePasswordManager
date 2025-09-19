@@ -4,16 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 
 	buildconfig "go-password-manager/internal/config/buildconfig"
-	config "go-password-manager/internal/config/runtimeconfig"
-	"go-password-manager/internal/config/secretkeymetadata"
-	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/logger"
-	"go-password-manager/internal/service"
-	"go-password-manager/internal/storage"
 	"go-password-manager/ui"
+	"go-password-manager/ui/di"
+
+	// Side-effect import to register LAN transport
+	_ "go-password-manager/internal/transport/lan"
 )
 
 var (
@@ -21,55 +19,36 @@ var (
 	date   = "unknown"
 )
 
-func main() {
+func runApp() error {
 	// Handle version flag
 	var showVersion = flag.Bool("version", false, "Show version information")
 	flag.Parse()
 
 	buildCfg, err := buildconfig.Load()
 	if err != nil {
-		log.Fatalf("Failed to load build config: %v", err)
+		return fmt.Errorf("load build config: %w", err)
 	}
 
 	if *showVersion {
 		fmt.Printf("Go Password Manager %s\n", buildCfg.Application.Version)
 		fmt.Printf("Commit: %s\n", commit)
 		fmt.Printf("Built: %s\n", date)
-		os.Exit(0)
+		return nil
 	}
 
 	logger.Init(buildCfg)
 
-	// Setup services
-	configService, err := config.NewConfigService(buildCfg)
+	bundle, err := di.BuildSharing(buildCfg)
 	if err != nil {
-		log.Fatalf("Failed to create config service: %v", err)
+		return fmt.Errorf("build sharing: %w", err)
 	}
-
-	secretKeyMetadataFileService, err := secretkeymetadata.NewSecretKeyMetadataFileService(buildCfg)
-	if err != nil {
-		log.Fatalf("Failed to create secret key metadata service: %v", err)
-	}
-
-	secretsEncryptionKeyManager, err := crypto.NewSecretsEncryptionKeyManager(configService, secretKeyMetadataFileService)
-	if err != nil {
-		log.Fatalf("Failed to create secrets encryption key manager: %v", err)
-	}
-
-	cryptoService, err := crypto.NewCryptoServiceDefault(configService, secretsEncryptionKeyManager)
-	if err != nil {
-		log.Fatalf("Failed to create crypto service: %v", err)
-	}
-
-	secretsPath, err := buildCfg.GetSecretsFilePath()
-	if err != nil {
-		log.Fatalf("Failed to get secrets file path: %v", err)
-	}
-	storageService := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "e2e-user")
-
-	secretsService := service.NewSecretsService(cryptoService, storageService)
-
-	// Pass services to the UI
-	app := ui.NewApp(buildCfg, secretsService)
+	app := ui.NewApp(buildCfg, bundle.SecretsService, bundle.TransferService)
 	app.Run()
+	return nil
+}
+
+func main() {
+	if err := runApp(); err != nil {
+		log.Fatalf("fatal: %v", err)
+	}
 }

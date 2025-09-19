@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	buildconfig "go-password-manager/internal/config/buildconfig"
 	"go-password-manager/internal/config/devicekeys"
 	"go-password-manager/internal/logger"
 	"os"
@@ -30,6 +31,7 @@ const (
 	AppName                  = "GoPasswordManager"
 	KeyringServiceEncryption = AppName + "-encryption"
 	KeyringServiceSigning    = AppName + "-signing"
+	logFailedSaveKeys        = "failed to save device keys: "
 )
 
 type DeviceKeyManager struct {
@@ -41,6 +43,17 @@ type DeviceKeyManager struct {
 	deviceKeyConfig       *devicekeys.DeviceKeyConfig // injected config
 	deviceKeyFileProvider DeviceKeyFileProvider
 }
+
+// UsingInMemoryProviders reports whether both keyring and device key file providers are in-memory implementations.
+func (m *DeviceKeyManager) UsingInMemoryProviders() bool {
+	if m == nil {
+		return false
+	}
+	_, keyringIsMem := m.keyringProvider.(*InMemoryKeyringProvider)
+	_, fileIsMem := m.deviceKeyFileProvider.(*InMemoryDeviceKeyFileProvider)
+	return keyringIsMem && fileIsMem
+}
+
 type KeyringProvider interface {
 	Set(service, key, value string) error
 	Get(service, key string) (string, error)
@@ -59,9 +72,52 @@ func (k *DefaultkeyringProvider) Delete(service, key string) error {
 	return keyring.Delete(service, key)
 }
 
+// InMemoryKeyringProvider is a test/dev implementation storing keys in-memory only.
+type InMemoryKeyringProvider struct{ store map[string]map[string]string }
+
+func NewInMemoryKeyring() *InMemoryKeyringProvider {
+	return &InMemoryKeyringProvider{store: map[string]map[string]string{}}
+}
+
+func (m *InMemoryKeyringProvider) Set(service, key, value string) error {
+	if _, ok := m.store[service]; !ok {
+		m.store[service] = map[string]string{}
+	}
+	m.store[service][key] = value
+	return nil
+}
+func (m *InMemoryKeyringProvider) Get(service, key string) (string, error) {
+	if svc, ok := m.store[service]; ok {
+		if v, ok2 := svc[key]; ok2 {
+			return v, nil
+		}
+	}
+	return "", os.ErrNotExist
+}
+func (m *InMemoryKeyringProvider) Delete(service, key string) error {
+	if svc, ok := m.store[service]; ok {
+		delete(svc, key)
+	}
+	return nil
+}
+
 type DeviceKeyFileProvider interface {
 	SaveDeviceKeys(config *devicekeys.DeviceKeyConfig) error
 	LoadDeviceKeys() (*devicekeys.DeviceKeyConfig, error)
+}
+
+// InMemoryDeviceKeyFileProvider is a test-only provider storing keys in memory.
+type InMemoryDeviceKeyFileProvider struct{ cfg *devicekeys.DeviceKeyConfig }
+
+func NewInMemoryDeviceKeyFileProvider() *InMemoryDeviceKeyFileProvider {
+	return &InMemoryDeviceKeyFileProvider{cfg: &devicekeys.DeviceKeyConfig{CurrentKey: &devicekeys.DeviceKeyBundle{}, Archived: []devicekeys.DeviceKeyBundle{}}}
+}
+func (p *InMemoryDeviceKeyFileProvider) SaveDeviceKeys(c *devicekeys.DeviceKeyConfig) error {
+	p.cfg = c
+	return nil
+}
+func (p *InMemoryDeviceKeyFileProvider) LoadDeviceKeys() (*devicekeys.DeviceKeyConfig, error) {
+	return p.cfg, nil
 }
 
 func NewDeviceKeyManager(keyPairGenerator KeyPairGenerator,
@@ -83,7 +139,13 @@ func NewDeviceKeyManager(keyPairGenerator KeyPairGenerator,
 		logger.Error("failed to load device key config: ", err)
 		return nil, err
 	}
-	return &DeviceKeyManager{
+	// Allocate config defensively if provider returned nil (should not normally happen) and ensure CurrentKey bundle exists.
+	if deviceKeyConfig == nil {
+		deviceKeyConfig = &devicekeys.DeviceKeyConfig{CurrentKey: &devicekeys.DeviceKeyBundle{}, Archived: []devicekeys.DeviceKeyBundle{}}
+	} else if deviceKeyConfig.CurrentKey == nil {
+		deviceKeyConfig.CurrentKey = &devicekeys.DeviceKeyBundle{}
+	}
+	mgr := &DeviceKeyManager{
 		keyPairGenerator:      keyPairGenerator,
 		keyringProvider:       &DefaultkeyringProvider{},
 		pemProvider:           pemProvider,
@@ -91,8 +153,18 @@ func NewDeviceKeyManager(keyPairGenerator KeyPairGenerator,
 		userID:                u.Username,
 		deviceKeyConfig:       deviceKeyConfig,
 		deviceKeyFileProvider: deviceKeyFileProvider,
-	}, nil
+	}
+	// Respect build configuration for in-memory keyring/device key storage.
+	if buildCfg, err := buildconfig.Load(); err == nil {
+		if buildCfg.Security.Keyring.InMemory {
+			mgr.keyringProvider = NewInMemoryKeyring()
+			mgr.deviceKeyFileProvider = NewInMemoryDeviceKeyFileProvider()
+		}
+	}
+	return mgr, nil
 }
+
+// test detection logic removed: selection of in-memory key handling is controlled exclusively by build configuration.
 
 func (m *DeviceKeyManager) SetKeyringProvider(keyringProvider KeyringProvider) {
 	m.keyringProvider = keyringProvider
@@ -149,14 +221,23 @@ func (m *DeviceKeyManager) GenerateDeviceKey(pub, priv []byte, keyType devicekey
 
 // GetDeviceKey loads the device key from secure storage.
 func (m *DeviceKeyManager) GetEncryptionDeviceKey() (*DeviceKey, error) {
+	// Defensive: guarantee config and CurrentKey bundle exist
+	if m.deviceKeyConfig == nil {
+		m.deviceKeyConfig = &devicekeys.DeviceKeyConfig{CurrentKey: &devicekeys.DeviceKeyBundle{}, Archived: []devicekeys.DeviceKeyBundle{}}
+	} else if m.deviceKeyConfig.CurrentKey == nil {
+		m.deviceKeyConfig.CurrentKey = &devicekeys.DeviceKeyBundle{}
+	}
 
 	key, err := m.keyringProvider.Get(KeyringServiceEncryption, m.deviceName)
 	if err != nil {
 		logger.Error("failed to get keyring: ", err)
 		newKey, genErr := m.GenerateEncryptionDeviceKey()
 		if genErr != nil {
-			logger.Error("failed to save device keys: ", genErr)
+			logger.Error(logFailedSaveKeys, genErr)
 			return nil, genErr
+		}
+		if m.deviceKeyConfig.CurrentKey == nil { // second guard in unlikely race
+			m.deviceKeyConfig.CurrentKey = &devicekeys.DeviceKeyBundle{}
 		}
 		m.deviceKeyConfig.CurrentKey.EncryptionKey = *cryptoToConfigKey(newKey, 1)
 		err = m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
@@ -169,8 +250,18 @@ func (m *DeviceKeyManager) GetEncryptionDeviceKey() (*DeviceKey, error) {
 		return nil, err
 	}
 
+	// Reuse persisted key ID if present to provide stable device identity.
+	persistedID := m.deviceKeyConfig.CurrentKey.EncryptionKey.KeyID
+	if persistedID == "" {
+		persistedID = uuid.New().String()
+		m.deviceKeyConfig.CurrentKey.EncryptionKey.KeyID = persistedID
+		// Save immediately to persist stable device identity for future sessions.
+		if err := m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig); err != nil {
+			logger.Error("failed to persist new encryption key ID: ", err)
+		}
+	}
 	return &DeviceKey{
-		ID:         uuid.New().String(),
+		ID:         persistedID,
 		DeviceName: m.deviceName,
 		CreatedAt:  time.Now(),
 		PublicKey:  m.deviceKeyConfig.CurrentKey.EncryptionKey.PublicKey,
@@ -182,14 +273,22 @@ func (m *DeviceKeyManager) GetEncryptionDeviceKey() (*DeviceKey, error) {
 
 // GetDeviceKey loads the device key from secure storage.
 func (m *DeviceKeyManager) GetSigningDeviceKey() (*DeviceKey, error) {
+	if m.deviceKeyConfig == nil {
+		m.deviceKeyConfig = &devicekeys.DeviceKeyConfig{CurrentKey: &devicekeys.DeviceKeyBundle{}, Archived: []devicekeys.DeviceKeyBundle{}}
+	} else if m.deviceKeyConfig.CurrentKey == nil {
+		m.deviceKeyConfig.CurrentKey = &devicekeys.DeviceKeyBundle{}
+	}
 
 	key, err := m.keyringProvider.Get(KeyringServiceSigning, m.deviceName)
 	if err != nil {
 		logger.Error("failed to get keyring: ", err)
 		newKey, genErr := m.GenerateSigningDeviceKey()
 		if genErr != nil {
-			logger.Error("failed to save device keys: ", genErr)
+			logger.Error(logFailedSaveKeys, genErr)
 			return nil, genErr
+		}
+		if m.deviceKeyConfig.CurrentKey == nil {
+			m.deviceKeyConfig.CurrentKey = &devicekeys.DeviceKeyBundle{}
 		}
 		m.deviceKeyConfig.CurrentKey.SigningKey = *cryptoToConfigKey(newKey, 1)
 		err = m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
@@ -249,7 +348,7 @@ func (m *DeviceKeyManager) RotateEncryptionDeviceKey(deviceName, userID, keyType
 	newKey, genErr := m.GenerateEncryptionDeviceKey()
 
 	if genErr != nil {
-		logger.Error("failed to save device keys: ", genErr)
+		logger.Error(logFailedSaveKeys, genErr)
 		return nil, genErr
 	}
 
@@ -278,7 +377,7 @@ func (m *DeviceKeyManager) RotateSigningDeviceKey(deviceName, userID, keyType st
 	newKey, genErr := m.GenerateSigningDeviceKey()
 
 	if genErr != nil {
-		logger.Error("failed to save device keys: ", genErr)
+		logger.Error(logFailedSaveKeys, genErr)
 		return nil, genErr
 	}
 

@@ -74,7 +74,7 @@ func TestFullTransferJourney(t *testing.T) {
 		// Drain send progress ensure no failure
 		for sp := range sendCh {
 			if sp.State == service.ShareFlowFailed {
-				t.Fatalf("send failed: %v", sp.Error)
+				require.FailNowf(t, "send failed", "%v", sp.Error)
 			}
 		}
 		// Collect receiver events

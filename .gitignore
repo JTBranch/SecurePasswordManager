@@ -50,3 +50,4 @@ test_macos_*.sh
 # Ignore local development files
 *.local
 local-*
+.vscode

@@ -20,6 +20,8 @@ security:
   encryption:
     key_size: 32
     algorithm: "AES-256-GCM"
+  keyring:
+    in_memory: false
 
 storage:
   secrets_file: "secrets.json"

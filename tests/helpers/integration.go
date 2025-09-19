@@ -12,6 +12,8 @@ import (
 	"go-password-manager/internal/storage"
 	"go-password-manager/tests/reporting"
 	"os"
+
+	"github.com/stretchr/testify/require"
 )
 
 // IntegrationTestSuite holds the test environment setup for service layer testing
@@ -48,43 +50,33 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 		suite.Reporter.T().Logf("Integration test environment reusing directory: %s", suite.testDataDir)
 	}
 
-	// Set environment to use test directory
+	// Set environment to use test directory (do not export TEST_DATA_DIR globally)
 	suite.originalEnv = os.Getenv("GO_PASSWORD_MANAGER_ENV")
-	os.Setenv("GO_PASSWORD_MANAGER_ENV", "integration-test")
-	os.Setenv("TEST_DATA_DIR", suite.testDataDir)
+	os.Setenv("GO_PASSWORD_MANAGER_ENV", "test")
 
 	// Load test configuration
 	var err error
+	// Reset buildconfig cache so each suite gets a fresh load and then inject test data dir
+	buildconfig.ResetCacheForTest()
 	suite.BuildConfig, err = buildconfig.Load()
-	if err != nil {
-		suite.Reporter.T().Fatalf("Failed to load build config: %v", err)
-	}
+	require.NoError(suite.Reporter.T(), err, "Failed to load build config")
+	suite.BuildConfig.Testing.DataDir = suite.testDataDir
 
 	suite.ConfigService, err = config.NewConfigService(suite.BuildConfig)
-	if err != nil {
-		suite.Reporter.T().Fatalf("Failed to create config service: %v", err)
-	}
+	require.NoError(suite.Reporter.T(), err, "Failed to create config service")
 
 	secretKeyMetadataService, err := secretkeymetadata.NewSecretKeyMetadataFileService(suite.BuildConfig)
-	if err != nil {
-		suite.Reporter.T().Fatalf("Failed to create secret key metadata service: %v", err)
-	}
+	require.NoError(suite.Reporter.T(), err, "Failed to create secret key metadata service")
 
 	secretsEncryptionKeyManager, err := crypto.NewSecretsEncryptionKeyManager(suite.ConfigService, secretKeyMetadataService)
-	if err != nil {
-		suite.Reporter.T().Fatalf("Failed to create secrets encryption key manager: %v", err)
-	}
+	require.NoError(suite.Reporter.T(), err, "Failed to create secrets encryption key manager")
 
 	suite.CryptoService, err = crypto.NewCryptoServiceDefault(suite.ConfigService, secretsEncryptionKeyManager)
-	if err != nil {
-		suite.Reporter.T().Fatalf("Failed to create crypto service: %v", err)
-	}
+	require.NoError(suite.Reporter.T(), err, "Failed to create crypto service")
 	// Initialize secrets service with test configuration
 	secretsPath, err := suite.BuildConfig.GetSecretsFilePath()
 	fmt.Println("Secrets file path:", secretsPath)
-	if err != nil {
-		suite.Reporter.T().Fatalf("Failed to get secrets file path: %v", err)
-	}
+	require.NoError(suite.Reporter.T(), err, "Failed to get secrets file path")
 	storageService := storage.NewFileStorage(secretsPath, suite.BuildConfig.Application.Version, "integration-user")
 	suite.SecretsService = service.NewSecretsService(suite.CryptoService, storageService)
 
@@ -93,10 +85,8 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 	suite.PemUtils = &crypto.PemUtils{}
 
 	suite.DeviceKeyManager, err = crypto.NewDeviceKeyManager(suite.CryptoService, suite.PemUtils, suite.DeviceKeyFileService)
-
-	if err != nil {
-		suite.Reporter.T().Fatalf("Failed to create Device Key Manager: %v", err)
-	}
+	require.NoError(suite.Reporter.T(), err, "Failed to create Device Key Manager")
+	// In-memory behavior for keyring/device storage now handled within constructors based on build configuration.
 
 	suite.ImportService = sharing.NewImportService(suite.CryptoService, suite.DeviceKeyManager, suite.SecretsService)
 
@@ -108,7 +98,7 @@ func (suite *IntegrationTestSuite) SetupTestEnvironment() {
 // SetTestDataDir sets the test data directory (for reusing existing test data)
 func (suite *IntegrationTestSuite) SetTestDataDir(dataDir string) {
 	suite.testDataDir = dataDir
-	os.Setenv("TEST_DATA_DIR", dataDir)
+	// Do not set global TEST_DATA_DIR; use suite-scoped value and reload
 	// Reload configuration to use the new data directory
 	suite.SetupTestEnvironment()
 }
@@ -121,9 +111,7 @@ func (suite *IntegrationTestSuite) GetTestDataDir() string {
 // GetSecretsFilePath returns the path to the secrets file
 func (suite *IntegrationTestSuite) GetSecretsFilePath() string {
 	secretsPath, err := suite.BuildConfig.GetSecretsFilePath()
-	if err != nil {
-		suite.Reporter.T().Fatalf("Failed to get secrets file path: %v", err)
-	}
+	require.NoError(suite.Reporter.T(), err, "Failed to get secrets file path")
 	return secretsPath
 }
 
@@ -136,6 +124,12 @@ func (suite *IntegrationTestSuite) Cleanup() {
 		os.Unsetenv("GO_PASSWORD_MANAGER_ENV")
 	}
 	os.Unsetenv("TEST_DATA_DIR")
+
+	// Attempt to delete any device keys we created during the test run to avoid polluting the user's keychain.
+	if suite.DeviceKeyManager != nil {
+		_ = suite.DeviceKeyManager.DeleteEncryptionDeviceKey()
+		_ = suite.DeviceKeyManager.DeleteSigningDeviceKey()
+	}
 
 	// The test temp directory is cleaned up automatically by the test framework
 }

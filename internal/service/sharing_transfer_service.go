@@ -3,9 +3,16 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"go-password-manager/internal/logger"
 	"go-password-manager/internal/sharing"
 	"go-password-manager/internal/transport"
 	"time"
+)
+
+const (
+	logFmtImportFailed    = "transfer.recv: import failed bundleID=%s err=%v"
+	logFmtImportSucceeded = "transfer.recv: import succeeded bundleID=%s from=%s"
 )
 
 // ExportFlowState represents coarse export preparation steps.
@@ -117,6 +124,40 @@ func NewSharingTransferService(local transport.DeviceDescriptor, deps transport.
 	return &SharingTransferService{local: local, deps: deps, export: exportProv, importp: importProv, discover: discovery, builder: builder}
 }
 
+// DiscoverDevices builds the specified transport (if discoverable) and returns a snapshot of devices.
+// It creates and closes a temporary transport instance; callers can poll periodically.
+func (s *SharingTransferService) DiscoverDevices(ctx context.Context, transportID string, limit int) ([]transport.DeviceDescriptor, error) {
+	// Prefer a long-lived discovery session if injected (avoids creating new transports).
+	logger.Debug("Begin discover of available devices")
+	if s.discover != nil {
+		devs := s.discover.Devices()
+		logger.Debug(fmt.Sprintf("found %d devs", len(devs)))
+		if limit > 0 && len(devs) > limit {
+			return devs[:limit], nil
+		}
+		return devs, nil
+	}
+	if s.builder == nil {
+		msg := "transport builder missing"
+		err := errors.New(msg)
+		logger.Error(msg, err)
+		return nil, err
+	}
+	// Enable discovery on ephemeral transport so active mDNS browse occurs.
+	tr, err := s.builder.Build(ctx, transportID, map[string]any{"listen_addr": ":0", "discovery": true}, s.local, s.deps)
+	if err != nil {
+		logger.Error("failed to enable discovery", err)
+		return nil, err
+	}
+	defer tr.Close()
+	if d, ok := tr.(transport.DiscoverableTransport); ok {
+		res, derr := d.Discover(ctx, limit)
+		logger.Debug(fmt.Sprintf("found %d devs", len(res)))
+		return res, derr
+	}
+	return nil, errors.New("transport not discoverable")
+}
+
 // ListDevices returns currently discovered devices (empty if no discovery session injected).
 func (s *SharingTransferService) ListDevices() []transport.DeviceDescriptor {
 	if s.discover == nil {
@@ -171,21 +212,26 @@ func (s *SharingTransferService) SendBundle(ctx context.Context, transportID str
 		close(ch)
 		return ch, errors.New("transport builder missing")
 	}
+	logger.Debug(fmt.Sprintf("transfer.send: begin bundleID=%s targetID=%s addr=%s via=%s", bundle.Payload.ID, target.DeviceID, target.LastAddr, transportID))
 	go func() {
 		defer close(ch)
 		start := time.Now()
 		ch <- TransferSendProgress{State: ShareFlowQueued, BundleID: bundle.Payload.ID, TargetID: target.DeviceID, StartedAt: start}
 		tr, err := s.builder.Build(ctx, transportID, map[string]any{"listen_addr": ":0", "discovery": false}, s.local, s.deps)
 		if err != nil {
+			logger.Debug(fmt.Sprintf("transfer.send: build fail bundleID=%s targetID=%s err=%v", bundle.Payload.ID, target.DeviceID, err))
 			ch <- TransferSendProgress{State: ShareFlowFailed, BundleID: bundle.Payload.ID, TargetID: target.DeviceID, Error: err, StartedAt: start, CompletedAt: time.Now()}
 			return
 		}
 		defer tr.Close()
+		logger.Debug(fmt.Sprintf("transfer.send: transport ready bundleID=%s targetID=%s", bundle.Payload.ID, target.DeviceID))
 		receipt, err := tr.Send(ctx, bundle, target)
 		if err != nil {
+			logger.Debug(fmt.Sprintf("transfer.send: send fail bundleID=%s targetID=%s err=%v", bundle.Payload.ID, target.DeviceID, err))
 			ch <- TransferSendProgress{State: ShareFlowFailed, BundleID: bundle.Payload.ID, TargetID: target.DeviceID, Error: err, Attempt: receipt.Attempt, StartedAt: receipt.StartedAt, CompletedAt: time.Now()}
 			return
 		}
+		logger.Debug(fmt.Sprintf("transfer.send: success bundleID=%s targetID=%s attempt=%d", bundle.Payload.ID, target.DeviceID, receipt.Attempt))
 		ch <- TransferSendProgress{State: ShareFlowSucceeded, BundleID: bundle.Payload.ID, TargetID: target.DeviceID, Attempt: receipt.Attempt, StartedAt: receipt.StartedAt, CompletedAt: receipt.CompletedAt}
 	}()
 	return ch, nil
@@ -206,16 +252,20 @@ func (s *SharingTransferService) ReceiveOnce(ctx context.Context, transportID st
 		ib, err := tr.Receive(ctx)
 		if err != nil || ib == nil {
 			if err != nil {
+				logger.Debug(fmt.Sprintf("transfer.recv: receive failed err=%v", err))
 				evCh <- InboundEvent{Type: InboundImportFailed, Error: err, Timestamp: time.Now()}
 			}
 			return
 		}
+		logger.Debug(fmt.Sprintf("transfer.recv: bundle received bundleID=%s from=%s", ib.Bundle.Payload.ID, ib.From.DeviceID))
 		evCh <- InboundEvent{Type: InboundBundleReceived, BundleID: ib.Bundle.Payload.ID, FromID: ib.From.DeviceID, Timestamp: time.Now()}
 		if autoImport && s.importp != nil {
 			// Real key inputs to ImportSecrets omitted (placeholder nils) - replace with actual key management when integrated.
 			if _, impErr := s.importp.ImportSecrets(ib.Bundle, nil, nil); impErr != nil {
+				logger.Debug(fmt.Sprintf(logFmtImportFailed, ib.Bundle.Payload.ID, impErr))
 				evCh <- InboundEvent{Type: InboundImportFailed, BundleID: ib.Bundle.Payload.ID, FromID: ib.From.DeviceID, Error: impErr, Timestamp: time.Now()}
 			} else {
+				logger.Debug(fmt.Sprintf(logFmtImportSucceeded, ib.Bundle.Payload.ID, ib.From.DeviceID))
 				evCh <- InboundEvent{Type: InboundImportSucceeded, BundleID: ib.Bundle.Payload.ID, FromID: ib.From.DeviceID, Timestamp: time.Now()}
 			}
 		}
@@ -250,9 +300,11 @@ func (s *SharingTransferService) ReceiveOnceAt(ctx context.Context, transportID 
 			return
 		}
 		if _, impErr := s.importp.ImportSecrets(ib.Bundle, nil, nil); impErr != nil {
+			logger.Debug(fmt.Sprintf(logFmtImportFailed, ib.Bundle.Payload.ID, impErr))
 			evCh <- InboundEvent{Type: InboundImportFailed, BundleID: ib.Bundle.Payload.ID, FromID: ib.From.DeviceID, Error: impErr, Timestamp: time.Now()}
 			return
 		}
+		logger.Debug(fmt.Sprintf(logFmtImportSucceeded, ib.Bundle.Payload.ID, ib.From.DeviceID))
 		evCh <- InboundEvent{Type: InboundImportSucceeded, BundleID: ib.Bundle.Payload.ID, FromID: ib.From.DeviceID, Timestamp: time.Now()}
 	}()
 	return evCh, nil
@@ -285,9 +337,11 @@ func (s *SharingTransferService) ReceiveOnceWithKeysAt(ctx context.Context, tran
 			return
 		}
 		if _, impErr := s.importp.ImportSecrets(ib.Bundle, recipientPriv, recipientPub); impErr != nil {
+			logger.Debug(fmt.Sprintf(logFmtImportFailed, ib.Bundle.Payload.ID, impErr))
 			evCh <- InboundEvent{Type: InboundImportFailed, BundleID: ib.Bundle.Payload.ID, FromID: ib.From.DeviceID, Error: impErr, Timestamp: time.Now()}
 			return
 		}
+		logger.Debug(fmt.Sprintf(logFmtImportSucceeded, ib.Bundle.Payload.ID, ib.From.DeviceID))
 		evCh <- InboundEvent{Type: InboundImportSucceeded, BundleID: ib.Bundle.Payload.ID, FromID: ib.From.DeviceID, Timestamp: time.Now()}
 	}()
 	return evCh, nil

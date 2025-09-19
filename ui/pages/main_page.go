@@ -14,7 +14,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-func MainPageWithService(win fyne.Window, secretsService *service.SecretsService, configService *config.ConfigService) fyne.CanvasObject {
+func MainPageWithService(win fyne.Window, secretsService *service.SecretsService, transferSvc *service.SharingTransferService, configService *config.ConfigService, onNavigateShare func()) fyne.CanvasObject {
 	fileData, _ := secretsService.LoadAllSecrets()
 	var selectedIdx int = -1
 	listBox := container.NewVBox()
@@ -72,46 +72,31 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 	}
 
 	// --- AppHeader logic moved to component ---
-	props := molecules.AppHeaderProps{
-		OnSearch: func(query string) {
-			fileData, _ = secretsService.LoadAllSecrets()
-			listBox.Objects = nil
-			for i, s := range fileData.Secrets {
-				if query == "" || containsIgnoreCase(s.SecretName, query) {
-					listBox.Add(atoms.SecretName(s, func(idx int) func() {
-						return func() {
-							selectedIdx = idx
-							updateDetail()
-						}
-					}(i), func(secretName string) func() {
-						return func() {
-							// Show delete confirmation modal
-							molecules.DeleteConfirmationModal(win, molecules.DeleteConfirmationModalProps{
-								SecretName: secretName,
-								OnConfirm: func() {
-									_ = secretsService.DeleteSecret(secretName)
-									selectedIdx = -1
-									updateList()
-									updateDetail()
-								},
-								OnCancel: func() {
-									// Do nothing on cancel
-								},
-							})
-						}
-					}(s.SecretName)))
-				}
+	filterAndRender := func(query string) {
+		fileData, _ = secretsService.LoadAllSecrets()
+		listBox.Objects = nil
+		for i, s := range fileData.Secrets {
+			if query == "" || containsIgnoreCase(s.SecretName, query) {
+				listBox.Add(atoms.SecretName(s, func(idx int) func() { return func() { selectedIdx = idx; updateDetail() } }(i), func(secretName string) func() {
+					return func() {
+						molecules.DeleteConfirmationModal(win, molecules.DeleteConfirmationModalProps{SecretName: secretName, OnConfirm: func() { _ = secretsService.DeleteSecret(secretName); selectedIdx = -1; updateList(); updateDetail() }})
+					}
+				}(s.SecretName)))
 			}
-			listBox.Refresh()
-		},
+		}
+		listBox.Refresh()
+	}
+	props := molecules.AppHeaderProps{
+		OnSearch: filterAndRender,
 		OnCreateSecret: func() {
 			molecules.NewSecretModal(win, secretsService, func() {
 				updateList()
 			})
 		},
 		OnMenuAction: func() {
-			// TODO: Implement menu functionality
-			// This will be used for importing secrets from browser, etc.
+			if onNavigateShare != nil {
+				onNavigateShare()
+			}
 		},
 	}
 	props.OnThemeChange = func(themeName string) {

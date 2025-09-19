@@ -34,8 +34,8 @@ func TestEnvironmentOverrides(t *testing.T) {
 		os.Unsetenv("DEBUG_LOGGING")
 	}()
 
-	// Clear global config to force reload
-	globalConfig = nil
+	// Clear cached config to force reload
+	ResetCacheForTest()
 
 	// Change to project root for test
 	originalDir, _ := os.Getwd()
@@ -93,6 +93,12 @@ func TestDynamicConfigMerging(t *testing.T) {
 		// Set env so Load() picks up development.yaml
 		os.Setenv("GO_PASSWORD_MANAGER_ENV", "development")
 		defer os.Unsetenv("GO_PASSWORD_MANAGER_ENV")
+
+		// Clear any cached config and unset unrelated env vars to avoid leakage from other tests
+		ResetCacheForTest()
+		os.Unsetenv("APP_NAME")
+		os.Unsetenv("DEFAULT_WINDOW_WIDTH")
+		os.Unsetenv("DEBUG_LOGGING")
 
 		cfg, err := Load()
 		assert.NoError(t, err)

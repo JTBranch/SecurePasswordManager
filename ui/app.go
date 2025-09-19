@@ -20,6 +20,8 @@ type App struct {
 	configService  *config.ConfigService
 	buildconfig    *buildconfig.Config
 	secretsService *service.SecretsService
+	transferSvc    *service.SharingTransferService
+	currentPage    string
 }
 
 const (
@@ -28,7 +30,7 @@ const (
 )
 
 // NewApp creates a new application instance
-func NewApp(buildCfg *buildconfig.Config, secretsService *service.SecretsService) *App {
+func NewApp(buildCfg *buildconfig.Config, secretsService *service.SecretsService, transferSvc *service.SharingTransferService) *App {
 	fyneApp := app.New()
 	fyneApp.Settings().SetTheme(&themes.LightTheme{})
 	window := fyneApp.NewWindow(buildCfg.Application.Name)
@@ -57,18 +59,21 @@ func NewApp(buildCfg *buildconfig.Config, secretsService *service.SecretsService
 		}
 	}
 
-	return &App{
-		fyneApp:        fyneApp,
-		window:         window,
-		configService:  configService,
-		buildconfig:    buildCfg,
-		secretsService: secretsService,
-	}
+	return &App{fyneApp: fyneApp, window: window, configService: configService, buildconfig: buildCfg, secretsService: secretsService, transferSvc: transferSvc}
 }
 
 // Run starts the application
 func (a *App) Run() {
-	a.window.SetContent(pages.MainPageWithService(a.window, a.secretsService, a.configService))
+	var showMain func()
+	showShare := func() {
+		a.currentPage = "share"
+		a.window.SetContent(pages.SharePage(a.window, a.secretsService, a.transferSvc, func() { showMain() }))
+	}
+	showMain = func() {
+		a.currentPage = "main"
+		a.window.SetContent(pages.MainPageWithService(a.window, a.secretsService, a.transferSvc, a.configService, showShare))
+	}
+	showMain()
 
 	// Save window size on close
 	a.window.SetOnClosed(func() {

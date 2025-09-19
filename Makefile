@@ -50,6 +50,7 @@ test-unit:
 
 test-integration:
 	@echo "🔗 Running integration tests..."
+	@export GO_PASSWORD_MANAGER_ENV=test; \
 	rm -rf **/tmp/output
 	rm -rf **/keys
 	@mkdir -p tmp/output
@@ -57,6 +58,7 @@ test-integration:
 
 test-e2e:
 	@echo "🎭 Running E2E tests..."
+	@export GO_PASSWORD_MANAGER_ENV=test; \
 	rm -rf **/tmp/output
 	rm -rf **/keys
 	@mkdir -p tmp/output

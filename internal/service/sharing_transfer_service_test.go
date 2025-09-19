@@ -57,9 +57,9 @@ func TestTransferServicePrepareExportSuccess(t *testing.T) {
 		final = p
 	}
 	t.Logf("Export progress: %#v", states)
-	if len(states) != 2 || states[0] != ExportStatePreparing || states[1] != ExportStateReady {
-		t.Fatalf("unexpected states: %#v", states)
-	}
+	require.Equal(t, 2, len(states), "unexpected states: %#v", states)
+	require.Equal(t, ExportStatePreparing, states[0], "unexpected states: %#v", states)
+	require.Equal(t, ExportStateReady, states[1], "unexpected states: %#v", states)
 	require.Equal(t, "export-123", final.BundleID)
 }
 
@@ -83,7 +83,7 @@ func TestTransferServiceSendBundleSuccess(t *testing.T) {
 		case ShareFlowSucceeded:
 			seenSucceeded = true
 		case ShareFlowFailed:
-			t.Fatalf("unexpected failure: %v", p.Error)
+			require.FailNowf(t, "unexpected failure", "%v", p.Error)
 		}
 	}
 	assert.True(t, seenQueued, "expected queued state not observed")
@@ -102,9 +102,7 @@ func TestTransferServiceReceiveOnceAutoImport(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	evCh, err := svc.ReceiveOnce(ctx, "lan", true)
-	if err != nil {
-		t.Fatalf("ReceiveOnce error: %v", err)
-	}
+	require.NoError(t, err, "ReceiveOnce error: %v", err)
 	gotBundle, gotImport := false, false
 	for ev := range evCh {
 		switch ev.Type {
@@ -113,7 +111,7 @@ func TestTransferServiceReceiveOnceAutoImport(t *testing.T) {
 		case InboundImportSucceeded:
 			gotImport = true
 		case InboundImportFailed:
-			t.Fatalf("import failed: %v", ev.Error)
+			require.FailNowf(t, "import failed", "%v", ev.Error)
 		}
 	}
 	assert.True(t, gotBundle, "expected bundle event not observed")

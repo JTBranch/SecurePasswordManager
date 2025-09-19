@@ -84,7 +84,12 @@ func AppHeader(props AppHeaderProps, win fyne.Window) fyne.CanvasObject {
 		themesItem := fyne.NewMenuItem("Themes", nil)
 		themesItem.ChildMenu = themesSubMenu
 
-		mainMenu := fyne.NewMenu("Menu", themesItem /*, other items here */)
+		shareItem := fyne.NewMenuItem("Share Secrets", func() {
+			if props.OnMenuAction != nil {
+				props.OnMenuAction()
+			}
+		})
+		mainMenu := fyne.NewMenu("Menu", shareItem, themesItem /*, other items here */)
 		pop := widget.NewPopUpMenu(mainMenu, win.Canvas())
 		pop.ShowAtPosition(menuBtn.Position().AddXY(0, menuBtn.Size().Height))
 	}

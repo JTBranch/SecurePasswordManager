@@ -15,9 +15,14 @@ import (
 	"math/big"
 	mrand "math/rand"
 	"net"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
+	"go-password-manager/internal/logger"
 	"go-password-manager/internal/sharing"
 	"go-password-manager/internal/transport"
 	transportpb "go-password-manager/internal/transport/proto"
@@ -39,16 +44,17 @@ type Config struct {
 // Transport implements a skeleton LAN BundleTransport. Real message framing
 // & crypto handshake will be added in subsequent iterations.
 type Transport struct {
-	cfg        Config
-	local      transport.DeviceDescriptor
-	deps       transport.Dependencies
-	ln         net.Listener
-	closed     chan struct{}
-	tlsCert    tls.Certificate
-	tlsConfig  *tls.Config
-	inbound    chan *transport.InboundBundle
-	advertiser interface{ Close() }
-	pinned     sync.Map // deviceID -> DER SubjectPublicKeyInfo
+	cfg          Config
+	local        transport.DeviceDescriptor
+	deps         transport.Dependencies
+	ln           net.Listener
+	closed       chan struct{}
+	tlsCert      tls.Certificate
+	tlsConfig    *tls.Config
+	inbound      chan *transport.InboundBundle
+	advertiser   interface{ Close() }
+	pinned       sync.Map // deviceID -> DER SubjectPublicKeyInfo
+	fallbackPath string   // path to fallback instance file
 }
 
 // Addr returns the listen address of the transport (for tests / diagnostics).
@@ -60,6 +66,210 @@ func (t *Transport) Addr() string {
 }
 
 func (t *Transport) ID() string { return "lan" }
+
+// Discover returns currently pinned peer devices (TOFU) as a lightweight
+// discovery mechanism. Future enhancement: active zeroconf browse.
+const (
+	txtDeviceID   = "device_id="
+	txtDeviceName = "device_name="
+	serviceType   = "_vibes-pass._tcp"
+	serviceDomain = "local."
+)
+
+func (t *Transport) Discover(ctx context.Context, limit int) ([]transport.DeviceDescriptor, error) {
+	logger.Debug("lan.discover: start")
+	var fresh []transport.DeviceDescriptor
+	if t.cfg.Discovery {
+		fresh = t.activeBrowseCollect(ctx, limit)
+	} else {
+		logger.Debug("lan.discover: discovery disabled in config")
+	}
+	dedup := map[string]transport.DeviceDescriptor{}
+	for _, d := range fresh {
+		if d.DeviceID != t.local.DeviceID {
+			dedup[d.DeviceID] = d
+		}
+	}
+	t.pinned.Range(func(key, value any) bool {
+		if id, ok := key.(string); ok && id != t.local.DeviceID {
+			if _, exists := dedup[id]; !exists {
+				dedup[id] = transport.DeviceDescriptor{DeviceID: id, DeviceName: id}
+			}
+		}
+		return true
+	})
+	results := make([]transport.DeviceDescriptor, 0, len(dedup))
+	for _, d := range dedup {
+		results = append(results, d)
+	}
+	if len(results) == 0 { // fallback only when no mDNS results
+		fb := t.readFallbackPeers()
+		for _, d := range fb {
+			if d.DeviceID != t.local.DeviceID {
+				results = append(results, d)
+			}
+		}
+	}
+	logger.Debug("lan.discover: aggregated devices=" + itoa(len(results)))
+	if limit > 0 && len(results) > limit {
+		return results[:limit], nil
+	}
+	return results, nil
+}
+
+func (t *Transport) activeBrowseCollect(ctx context.Context, limit int) []transport.DeviceDescriptor {
+	resolver, err := zeroconf.NewResolver(nil)
+	if err != nil {
+		logger.Debug("lan.discover: resolver error: " + err.Error())
+		return nil
+	}
+	entries := make(chan *zeroconf.ServiceEntry)
+	browseCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	logger.Debug("lan.discover: browsing _vibes-pass._tcp for up to 2000ms")
+	if err := resolver.Browse(browseCtx, serviceType, serviceDomain, entries); err != nil {
+		logger.Debug("lan.discover: browse error: " + err.Error())
+		cancel()
+		return nil
+	}
+	devices := map[string]transport.DeviceDescriptor{}
+Loop:
+	for {
+		select {
+		case e, ok := <-entries:
+			if !ok {
+				logger.Debug("lan.discover: entries channel closed")
+				break Loop
+			}
+			if e == nil {
+				continue
+			}
+			logger.Debug("lan.discover: entry name=" + e.Instance + " port=" + itoa(e.Port))
+			devID, devName := parseTXT(e.Text)
+			logger.Debug("lan.discover: parsed devID=" + devID + " devName=" + devName)
+			if devID == "" || devID == t.local.DeviceID {
+				continue
+			}
+			if devName == "" {
+				devName = devID
+			}
+			if _, exists := devices[devID]; !exists {
+				dd := transport.DeviceDescriptor{DeviceID: devID, DeviceName: devName}
+				if len(e.AddrIPv4) > 0 {
+					dd.LastAddr = e.AddrIPv4[0].String() + ":" + itoa(e.Port)
+				} else if len(e.AddrIPv6) > 0 {
+					dd.LastAddr = "[" + e.AddrIPv6[0].String() + "]:" + itoa(e.Port)
+				}
+				devices[devID] = dd
+				logger.Debug("lan.discover: added device id=" + devID + " addr=" + dd.LastAddr)
+				if _, seen := t.pinned.Load(devID); !seen {
+					t.pinned.Store(devID, []byte("placeholder"))
+				}
+				if limit > 0 && len(devices) >= limit {
+					cancel()
+					break Loop
+				}
+			}
+		case <-browseCtx.Done():
+			logger.Debug("lan.discover: browse context done")
+			break Loop
+		}
+	}
+	cancel()
+	res := make([]transport.DeviceDescriptor, 0, len(devices))
+	for _, d := range devices {
+		res = append(res, d)
+	}
+	logger.Debug("lan.discover: collected devices=" + itoa(len(res)))
+	return res
+}
+
+// --- Fallback file-based discovery (development aid) ---
+func (t *Transport) writeFallbackFile(addr string) {
+	if addr == "" {
+		return
+	}
+	dir := os.TempDir()
+	path := filepath.Join(dir, "vibes-pass-instance-"+t.local.DeviceID)
+	data := t.local.DeviceID + "|" + t.local.DeviceName + "|" + addr
+	if err := os.WriteFile(path, []byte(data), 0o600); err == nil {
+		logger.Debug("lan.fallback: wrote instance file=" + path)
+		t.fallbackPath = path
+	} else {
+		logger.Debug("lan.fallback: write error: " + err.Error())
+	}
+}
+
+func (t *Transport) readFallbackPeers() []transport.DeviceDescriptor {
+	dir := os.TempDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	// Deduplicate by device name picking newest file; prune stale (>20s)
+	const maxAge = 20 * time.Second
+	now := time.Now()
+	type candidate struct {
+		d   transport.DeviceDescriptor
+		mod time.Time
+	}
+	byName := map[string]candidate{}
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, "vibes-pass-instance-") {
+			continue
+		}
+		info, ierr := e.Info()
+		if ierr != nil {
+			continue
+		}
+		age := now.Sub(info.ModTime())
+		if age > maxAge { // prune stale file
+			_ = os.Remove(filepath.Join(dir, name))
+			continue
+		}
+		path := filepath.Join(dir, name)
+		b, rerr := os.ReadFile(path)
+		if rerr != nil || len(b) == 0 {
+			continue
+		}
+		parts := strings.Split(string(b), "|")
+		if len(parts) != 3 {
+			continue
+		}
+		if parts[0] == t.local.DeviceID {
+			continue
+		} // skip self
+		d := transport.DeviceDescriptor{DeviceID: parts[0], DeviceName: parts[1], LastAddr: parts[2]}
+		if cur, ok := byName[d.DeviceName]; ok {
+			if info.ModTime().After(cur.mod) {
+				byName[d.DeviceName] = candidate{d: d, mod: info.ModTime()}
+			}
+		} else {
+			byName[d.DeviceName] = candidate{d: d, mod: info.ModTime()}
+		}
+	}
+	peers := make([]transport.DeviceDescriptor, 0, len(byName))
+	for _, c := range byName {
+		peers = append(peers, c.d)
+	}
+	sort.Slice(peers, func(i, j int) bool { return peers[i].DeviceName < peers[j].DeviceName })
+	logger.Debug("lan.fallback: loaded peers=" + itoa(len(peers)))
+	return peers
+}
+
+// parseTXT extracts device id and name from zeroconf TXT records.
+func parseTXT(txts []string) (devID, devName string) {
+	for _, txt := range txts {
+		if strings.HasPrefix(txt, txtDeviceID) {
+			devID = strings.TrimPrefix(txt, txtDeviceID)
+			continue
+		}
+		if strings.HasPrefix(txt, txtDeviceName) {
+			devName = strings.TrimPrefix(txt, txtDeviceName)
+		}
+	}
+	return
+}
 
 func (t *Transport) Send(ctx context.Context, bundle *sharing.SecretExportBundle, target transport.DeviceDescriptor) (*transport.TransportReceipt, error) {
 	r := &transport.TransportReceipt{TransportID: t.ID(), Target: target, BundleID: "", StartedAt: time.Now(), Attempt: 0, Meta: map[string]any{}}
@@ -189,18 +399,62 @@ func (factory) New(ctx context.Context, cfg map[string]any, local transport.Devi
 	}
 	t := &Transport{cfg: c, local: updatedLocal, deps: deps, ln: ln, closed: make(chan struct{}), tlsCert: cert, tlsConfig: tlsConf, inbound: make(chan *transport.InboundBundle, 8)}
 	if c.Discovery {
-		if deps.Advertisement != nil {
-			if tcpAddr, ok := ln.Addr().(*net.TCPAddr); ok {
-				if handle, err := deps.Advertisement.Start(&t.local, tcpAddr.IP.String(), tcpAddr.Port, nil); err == nil {
-					t.advertiser = &advertAdapter{h: handle}
-				}
+		if tcpAddr, ok := ln.Addr().(*net.TCPAddr); ok {
+			ip := tcpAddr.IP
+			if ip == nil || ip.IsUnspecified() {
+				ip = pickInterfaceIPv4()
 			}
-		} else if adv, err := startAdvertisement(&t.local, ln.Addr()); err == nil {
-			t.advertiser = zeroconfWrapper{Server: adv}
+			addrStr := ip.String() + ":" + itoa(tcpAddr.Port)
+			if deps.Advertisement != nil {
+				logger.Debug("lan.advertise: starting injected advertisement addr=" + addrStr)
+				if handle, err2 := deps.Advertisement.Start(&t.local, ip.String(), tcpAddr.Port, nil); err2 == nil {
+					logger.Debug("lan.advertise: injected advertisement started")
+					t.advertiser = &advertAdapter{h: handle}
+				} else {
+					logger.Debug("lan.advertise: injected advertisement error: " + err2.Error())
+				}
+			} else if adv, err2 := startAdvertisementWithIP(&t.local, ip, tcpAddr.Port); err2 == nil {
+				logger.Debug("lan.advertise: zeroconf register success device=" + t.local.DeviceID + " addr=" + addrStr)
+				t.advertiser = zeroconfWrapper{Server: adv}
+			} else {
+				logger.Debug("lan.advertise: zeroconf register error: " + err2.Error())
+			}
+			// fallback file uses concrete ip:port
+			t.writeFallbackFile(addrStr)
 		}
 	}
 	go t.acceptLoop()
 	return t, nil
+}
+
+// pickInterfaceIPv4 chooses first non-loopback UP interface IPv4, fallback loopback.
+func pickInterfaceIPv4() net.IP {
+	ifs, err := net.Interfaces()
+	if err != nil {
+		return net.ParseIP("127.0.0.1")
+	}
+	for _, iface := range ifs {
+		if (iface.Flags&net.FlagUp) == 0 || (iface.Flags&net.FlagLoopback) != 0 {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		for _, a := range addrs {
+			if ipNet, ok := a.(*net.IPNet); ok && ipNet.IP.To4() != nil {
+				return ipNet.IP.To4()
+			}
+		}
+	}
+	return net.ParseIP("127.0.0.1")
+}
+
+// startAdvertisementWithIP registers with explicit interface IP.
+func startAdvertisementWithIP(local *transport.DeviceDescriptor, ip net.IP, port int) (*zeroconf.Server, error) {
+	txt := []string{"device_id=" + local.DeviceID, "device_name=" + local.DeviceName}
+	if len(local.Ed25519Pub) > 0 {
+		txt = append(txt, "ed25519="+base64.StdEncoding.EncodeToString(local.Ed25519Pub))
+	}
+	// Use default interface selection by passing nil for ifaces; zeroconf binds to all.
+	return zeroconf.Register("vibes-"+shortID(local.DeviceID), serviceType, serviceDomain, port, txt, nil)
 }
 
 func parseConfig(cfg map[string]any) Config {
@@ -499,22 +753,7 @@ func fromProtoBundle(pb *transportpb.SecretExportBundle) *sharing.SecretExportBu
 }
 
 // startAdvertisement publishes an mDNS service advertising this device.
-func startAdvertisement(local *transport.DeviceDescriptor, addr net.Addr) (*zeroconf.Server, error) {
-	tcpAddr, ok := addr.(*net.TCPAddr)
-	if !ok {
-		return nil, errors.New("lan: unexpected listener addr type")
-	}
-	port := tcpAddr.Port
-	txt := []string{"device_id=" + local.DeviceID, "device_name=" + local.DeviceName}
-	if len(local.Ed25519Pub) > 0 {
-		txt = append(txt, "ed25519="+base64.StdEncoding.EncodeToString(local.Ed25519Pub))
-	}
-	srv, err := zeroconf.Register("vibes-"+shortID(local.DeviceID), "_vibes-pass._tcp", "local.", port, txt, nil)
-	if err != nil {
-		return nil, err
-	}
-	return srv, nil
-}
+// startAdvertisement removed; replaced by startAdvertisementWithIP simplifying interface selection.
 
 func shortID(id string) string {
 	if len(id) <= 8 {

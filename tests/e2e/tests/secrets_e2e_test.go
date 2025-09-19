@@ -1,13 +1,9 @@
 package e2e
 
 import (
-	buildconfig "go-password-manager/internal/config/buildconfig"
-	config "go-password-manager/internal/config/runtimeconfig"
-	"go-password-manager/internal/config/secretkeymetadata"
-	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/service"
-	"go-password-manager/internal/storage"
+	"go-password-manager/tests/e2e/setup"
 	"go-password-manager/tests/reporting"
 	"go-password-manager/tests/testdata"
 	"testing"
@@ -18,41 +14,23 @@ import (
 
 func TestSecretsWorkflowE2E(t *testing.T) {
 	reporting.WithReporting(t, "TestSecretsWorkflowE2E", func(reporter *reporting.TestWrapper) {
-		testCreateEditDeleteWorkflow(reporter)
+		suite := setup.NewE2ETestSuite(reporter.T())
+		suite.SetupTestEnvironment()
+		defer suite.Cleanup()
+		testCreateEditDeleteWorkflow(reporter, suite.SecretsService)
 	})
 }
 
-func testCreateEditDeleteWorkflow(reporter *reporting.TestWrapper) {
+func testCreateEditDeleteWorkflow(reporter *reporting.TestWrapper, secretsService *service.SecretsService) {
 	t := reporter.T()
 	reporter.LogStep("Initializing secrets service", nil)
-
-	buildCfg, err := buildconfig.Load()
-	require.NoError(t, err, "Failed to load build config")
-
-	configService, err := config.NewConfigService(buildCfg)
-	require.NoError(t, err, "Failed to create config service")
-
-	secretKeyMetadataService, err := secretkeymetadata.NewSecretKeyMetadataFileService(buildCfg)
-	require.NoError(t, err, "Failed to create secret key metadata service")
-
-	secretsKeyManager, err := crypto.NewSecretsEncryptionKeyManager(configService, secretKeyMetadataService)
-	require.NoError(t, err, "Failed to create secrets key manager")
-
-	cryptoService, err := crypto.NewCryptoServiceDefault(configService, secretsKeyManager)
-	require.NoError(t, err, "Failed to create crypto service")
-
-	secretsPath, err := buildCfg.GetSecretsFilePath()
-	require.NoError(t, err)
-	storageService := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "e2e-user")
-
-	secretsService := service.NewSecretsService(cryptoService, storageService)
 
 	// Test 1: Create a secret
 	secretName := testdata.TestSecrets.Simple.Name
 	secretValue := testdata.TestSecrets.Simple.Value
 
 	reporter.LogStep("Creating a new secret", map[string]interface{}{"secretName": secretName})
-	err = secretsService.SaveOrUpdateSecret(secretName, secretValue)
+	err := secretsService.SaveOrUpdateSecret(secretName, secretValue)
 	require.NoError(t, err, "Failed to create secret")
 
 	// Test 2: Load and verify secret
@@ -136,33 +114,15 @@ func testDeleteSecretWorkflow(reporter *reporting.TestWrapper, secretsService *s
 
 func TestErrorHandlingE2E(t *testing.T) {
 	reporting.WithReporting(t, "TestErrorHandlingE2E", func(reporter *reporting.TestWrapper) {
-		t := reporter.T()
-		// Setup
-		buildCfg, err := buildconfig.Load()
-		require.NoError(t, err, "Failed to load build config")
+		suite := setup.NewE2ETestSuite(reporter.T())
+		suite.SetupTestEnvironment()
+		defer suite.Cleanup()
 
-		configService, err := config.NewConfigService(buildCfg)
-		require.NoError(t, err, "Failed to create config service")
-
-		secretKeyMetadataService, err := secretkeymetadata.NewSecretKeyMetadataFileService(buildCfg)
-		require.NoError(t, err, "Failed to create secret key metadata service")
-
-		secretsKeyManager, err := crypto.NewSecretsEncryptionKeyManager(configService, secretKeyMetadataService)
-		if err != nil {
-			t.Fatalf("Failed to create secrets encryption key manager: %v", err)
-		}
-
-		cryptoService, err := crypto.NewCryptoServiceDefault(configService, secretsKeyManager)
-		require.NoError(t, err, "Failed to create crypto service")
-
-		secretsPath, err := buildCfg.GetSecretsFilePath()
-		require.NoError(t, err)
-		storageService := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "e2e-user")
-		secretsService := service.NewSecretsService(cryptoService, storageService)
+		secretsService := suite.SecretsService
 
 		// Test error handling - edit non-existent secret
 		reporter.LogStep("Testing error on editing non-existent secret", nil)
-		err = secretsService.UpdateSecret("non-existent-secret", "some-value")
+		err := secretsService.UpdateSecret("non-existent-secret", "some-value")
 		require.Error(t, err, "Expected error when editing non-existent secret")
 
 		// Test error handling - delete non-existent secret (should not error but should be idempotent)

@@ -19,11 +19,12 @@ const (
 
 // MainPageObject represents the main application page for testing
 type MainPageObject struct {
-	window         fyne.Window
-	secretsService *service.SecretsService
-	configService  *config.ConfigService
-	mainContent    fyne.CanvasObject
-	t              *testing.T
+	window                 fyne.Window
+	secretsService         *service.SecretsService
+	configService          *config.ConfigService
+	sharingTransferService *service.SharingTransferService
+	mainContent            fyne.CanvasObject
+	t                      *testing.T
 }
 
 // NewMainPageObject creates a new main page object
@@ -37,7 +38,7 @@ func NewMainPageObject(t *testing.T, window fyne.Window, secretsService *service
 
 // LoadPage loads the main page content
 func (p *MainPageObject) LoadPage() {
-	p.mainContent = pages.MainPageWithService(p.window, p.secretsService, p.configService)
+	p.mainContent = pages.MainPageWithService(p.window, p.secretsService, p.sharingTransferService, p.configService, nil)
 	p.window.SetContent(p.mainContent)
 	p.waitForUIUpdate()
 }
