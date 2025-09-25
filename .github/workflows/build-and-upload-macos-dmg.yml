@@ -157,15 +157,15 @@ jobs:
             fi
           fi
           echo "Looking up release for tag: $TAG"
-          API_URL="https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG"
+          API_URL="https://api.github.com/repos/${{ github.repository }}/releases/tag/$TAG"
           echo "Querying $API_URL"
           RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" "$API_URL")
-          UPLOAD_URL=$(echo "$RESPONSE" | jq -r .upload_url // empty)
+          UPLOAD_URL=$(echo "$RESPONSE" | jq -r '.upload_url // empty')
           if [[ -z "$UPLOAD_URL" ]]; then
             echo "Release for tag $TAG not found; attempting to create a new release based on latest release"
             # Fetch latest release
             LATEST=$(curl -s -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest")
-            LATEST_TAG=$(echo "$LATEST" | jq -r .tag_name // empty)
+            LATEST_TAG=$(echo "$LATEST" | jq -r '.tag_name // empty')
             if [[ -z "$LATEST_TAG" || "$LATEST_TAG" == "null" ]]; then
               echo "No existing releases found. Creating initial release v1.0.0"
               NEXT_TAG="v1.0.0"
@@ -186,7 +186,7 @@ jobs:
             echo "Creating release with tag: $NEXT_TAG"
             CREATE_PAYLOAD=$(jq -n --arg t "$NEXT_TAG" '{ tag_name: $t, name: $t, body: "Automated DMG release", draft: false, prerelease: false }')
             CREATE_RESP=$(curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" -d "$CREATE_PAYLOAD" "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases")
-            UPLOAD_URL=$(echo "$CREATE_RESP" | jq -r .upload_url // empty)
+            UPLOAD_URL=$(echo "$CREATE_RESP" | jq -r '.upload_url // empty')
             if [[ -z "$UPLOAD_URL" ]]; then
               echo "ERROR: failed to create release. Response: $CREATE_RESP" >&2
               exit 2
