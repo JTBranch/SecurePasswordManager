@@ -140,10 +140,15 @@ jobs:
             exit 0
           fi
 
-          # Otherwise attempt to look up the release by tag (requires GITHUB_TOKEN)
-          TAG="${{ steps.create_dmg.outputs.version }}"
-          if [[ -z "$TAG" || "$TAG" == 'null' ]]; then
-            TAG=development
+          # Otherwise attempt to look up the release by the canonical release tag (requires GITHUB_TOKEN)
+          # Prefer the workflow input (release_tag) or the release event tag; do NOT use the timestamped DMG filename
+          if [[ -n "${{ github.event.inputs.release_tag }}" && "${{ github.event.inputs.release_tag }}" != 'null' ]]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+          elif [[ -n "${{ github.event.release.tag_name }}" && "${{ github.event.release.tag_name }}" != 'null' ]]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            echo "ERROR: no release tag available to look up. Run this workflow from a Release event or pass the 'release_tag' input." >&2
+            exit 2
           fi
           echo "Looking up release for tag: $TAG"
           API_URL="https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG"
