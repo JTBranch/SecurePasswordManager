@@ -82,6 +82,8 @@ jobs:
           VERSION="${VERSION_BASE}-${TIMESTAMP}"
 
           echo "Using VERSION=$VERSION and ARCH=$ARCH"
+          # Export VERSION_BASE so downstream steps can use the canonical tag (without timestamp)
+          echo "version_base=$VERSION_BASE" >> $GITHUB_OUTPUT
 
           # First assemble the app so we can codesign / notarize if creds are available
           ./scripts/create-macos-dmg.sh "$ARCH" "$VERSION" assemble
@@ -141,14 +143,18 @@ jobs:
           fi
 
           # Otherwise attempt to look up the release by the canonical release tag (requires GITHUB_TOKEN)
-          # Prefer the workflow input (release_tag) or the release event tag; do NOT use the timestamped DMG filename
+          # Prefer the workflow input (release_tag) or the release event tag; if missing, fall back to the computed version_base
           if [[ -n "${{ github.event.inputs.release_tag }}" && "${{ github.event.inputs.release_tag }}" != 'null' ]]; then
             TAG="${{ github.event.inputs.release_tag }}"
           elif [[ -n "${{ github.event.release.tag_name }}" && "${{ github.event.release.tag_name }}" != 'null' ]]; then
             TAG="${{ github.event.release.tag_name }}"
           else
-            echo "ERROR: no release tag available to look up. Run this workflow from a Release event or pass the 'release_tag' input." >&2
-            exit 2
+            # fallback to the version_base exported by create_dmg (this will be 'development' or the provided tag)
+            TAG="${{ steps.create_dmg.outputs.version_base }}"
+            if [[ -z "$TAG" || "$TAG" == 'null' ]]; then
+              echo "ERROR: no release tag available to look up. Run this workflow from a Release event or pass the 'release_tag' input." >&2
+              exit 2
+            fi
           fi
           echo "Looking up release for tag: $TAG"
           API_URL="https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG"
