@@ -34,9 +34,7 @@ func (l *ListPage) ClickCreate() {
 	}
 	// fallback: open modal directly and reload content when it closes
 	molecules.NewSecretModal(l.window, l.svc, func() {
-		if l.window != nil && l.window.Canvas() != nil {
-			// no-op: main tests reload the whole page as needed
-		}
+		// no-op: main tests reload the whole page as needed
 	})
 }
 

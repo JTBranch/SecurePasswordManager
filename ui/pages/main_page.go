@@ -127,9 +127,7 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 		// that want explicit navigation can wrap this handler. The app wiring uses a showMain/ showShare
 		// closure so applying a theme should not unexpectedly navigate. For safety, if a caller exposed
 		// a navigation callback via props.OnMenuAction, prefer calling it to surface UI changes.
-		if onNavigateShare != nil {
-			// no-op here; the app has direct control to navigate. keep behaviour minimal.
-		}
+		// intentionally no-op: navigation controlled by caller
 	}
 
 	// Set header starting theme from config service and build header

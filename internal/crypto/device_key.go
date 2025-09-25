@@ -356,7 +356,10 @@ func (m *DeviceKeyManager) RotateEncryptionDeviceKey(deviceName, userID, keyType
 	version := m.deviceKeyConfig.CurrentKey.EncryptionKey.Version
 
 	m.deviceKeyConfig.CurrentKey.EncryptionKey = *cryptoToConfigKey(newKey, version+1)
-	m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
+	if err := m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig); err != nil {
+		logger.Error(logFailedSaveKeys, err)
+		return nil, err
+	}
 
 	return newKey, nil
 }
@@ -385,7 +388,10 @@ func (m *DeviceKeyManager) RotateSigningDeviceKey(deviceName, userID, keyType st
 	version := m.deviceKeyConfig.CurrentKey.SigningKey.Version
 
 	m.deviceKeyConfig.CurrentKey.SigningKey = *cryptoToConfigKey(newKey, version+1)
-	m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig)
+	if err := m.deviceKeyFileProvider.SaveDeviceKeys(m.deviceKeyConfig); err != nil {
+		logger.Error("failed to save device keys: ", err)
+		return nil, err
+	}
 
 	return newKey, nil
 }

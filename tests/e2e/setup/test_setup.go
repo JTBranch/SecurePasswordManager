@@ -125,7 +125,9 @@ func (suite *E2ETestSuite) Cleanup() {
 
 	// Reload environment configuration to reset to defaults
 	buildconfig.ResetCacheForTest()
-	buildconfig.Load()
+	if _, err := buildconfig.Load(); err != nil {
+		suite.t.Logf("Warning: failed to reload build config during cleanup: %v", err)
+	}
 
 	// Clean up test directory
 	err := os.RemoveAll(suite.testDataDir)

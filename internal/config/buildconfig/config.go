@@ -158,53 +158,55 @@ var loadErr error
 // Load loads configuration from YAML files and environment variables
 func Load() (*Config, error) {
 	loadOnce.Do(func() {
-		// Determine environment
-		env := os.Getenv("GO_PASSWORD_MANAGER_ENV")
-		if env == "" {
-			env = "development" // Default to development
-		}
-
 		root, foundGoMod, err := findProjectRoot()
 		if err != nil {
 			loadErr = fmt.Errorf("failed to find project root: %w", err)
 			return
 		}
 
-		// If we didn't find a go.mod (installed binary), default environment to production unless overridden.
-		if !foundGoMod {
-			if os.Getenv("GO_PASSWORD_MANAGER_ENV") == "" && os.Getenv("APP_ENV") == "" {
-				env = "production"
-			}
-		}
+		env := determineEnvironment(foundGoMod)
 
-		// Always load default config first
-		defaultConfigPath := filepath.Join(root, "configs", "default.yaml")
-		defaultConfig, err := loadConfigFile(defaultConfigPath)
+		cfg, err := loadAndMergeConfigs(root, env)
 		if err != nil {
-			loadErr = fmt.Errorf("failed to load default config: %w", err)
+			loadErr = err
 			return
 		}
 
-		// Try to load environment-specific config and merge dynamically
-		envConfigPath := filepath.Join(root, "configs", fmt.Sprintf("%s.yaml", env))
-		var config *Config
-		if _, statErr := os.Stat(envConfigPath); statErr == nil {
-			envConfig, err := loadConfigFile(envConfigPath)
-			if err != nil {
-				loadErr = fmt.Errorf("failed to load %s config: %w", env, err)
-				return
-			}
-			config = mergeConfigDynamic(defaultConfig, envConfig)
-		} else {
-			config = defaultConfig
-		}
-
-		// Apply environment variable overrides
-		applyEnvOverrides(config)
-
-		globalConfig = config
+		applyEnvOverrides(cfg)
+		globalConfig = cfg
 	})
 	return globalConfig, loadErr
+}
+
+// determineEnvironment returns the environment name to use based on env vars and whether the binary is installed.
+func determineEnvironment(foundGoMod bool) string {
+	env := os.Getenv("GO_PASSWORD_MANAGER_ENV")
+	if env != "" {
+		return env
+	}
+	// If APP_ENV is set, honor it
+	if env2 := os.Getenv("APP_ENV"); env2 != "" {
+		return env2
+	}
+	if !foundGoMod {
+		return "production"
+	}
+	return "development"
+}
+
+// loadAndMergeConfigs loads default and environment-specific configs (using embedded fallbacks) and merges them.
+func loadAndMergeConfigs(root, env string) (*Config, error) {
+	defaultConfigPath := filepath.Join(root, "configs", "default.yaml")
+	defaultConfig, err := loadConfigFile(defaultConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load default config: %w", err)
+	}
+
+	envConfigPath := filepath.Join(root, "configs", fmt.Sprintf("%s.yaml", env))
+	if envConfig, err := loadConfigFile(envConfigPath); err == nil && envConfig != nil {
+		return mergeConfigDynamic(defaultConfig, envConfig), nil
+	}
+	return defaultConfig, nil
 }
 
 // ResetCacheForTest clears the cached configuration so tests can reload with different env vars.

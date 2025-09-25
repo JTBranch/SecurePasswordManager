@@ -24,9 +24,11 @@ func TestCreateSecretOnFirstLoad(t *testing.T) {
 		testDataManager := testdata.NewTestDataManager()
 		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("ServiceLayerCRUD")
 		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
-		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		// Ensure cleanup is attempted; ignore return error in defer (best-effort cleanup)
+		defer func() {
+			_ = testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		}()
 		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
-		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
 
 		secrets, err := suite.SecretsService.LoadAllSecrets()
 		require.NoError(t, err)
@@ -36,7 +38,7 @@ func TestCreateSecretOnFirstLoad(t *testing.T) {
 		require.NoError(t, err, shouldBeAbleToCreateSecretMsg)
 		require.NoError(t, err, shouldBeAbleToCreateSecretMsg)
 
-		suite.SecretsService.SaveNewSecret(testSecretName, uniqueSecret.Value)
+		require.NoError(t, suite.SecretsService.SaveNewSecret(testSecretName, uniqueSecret.Value))
 
 		secrets, err = suite.SecretsService.LoadAllSecrets()
 		require.NoError(t, err)
@@ -55,9 +57,10 @@ func TestExistingSecretShowsUpOnSecondLoad(t *testing.T) {
 		testDataManager := testdata.NewTestDataManager()
 		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("SecondLoadTest")
 		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
-		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		defer func() {
+			_ = testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		}()
 		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
-		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
 
 		// Create a secret
 		err = suite.SecretsService.SaveNewSecret(uniqueSecret.UniqueName, uniqueSecret.Value)
@@ -103,9 +106,10 @@ func TestSecretVersioning(t *testing.T) {
 		testDataManager := testdata.NewTestDataManager()
 		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("VersioningTest")
 		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
-		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		defer func() {
+			_ = testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		}()
 		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
-		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
 
 		// Create a secret
 		err = suite.SecretsService.SaveNewSecret(uniqueSecret.UniqueName, uniqueSecret.Value)
@@ -158,9 +162,10 @@ func TestDeleteSecret(t *testing.T) {
 		testDataManager := testdata.NewTestDataManager()
 		uniqueSecret, err := testDataManager.GenerateUniqueSimpleSecret("DeleteTest")
 		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
-		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		defer func() {
+			_ = testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
+		}()
 		require.NoError(t, err, shouldGenerateUniqueSecretMsg)
-		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, []string{uniqueSecret.UniqueName})
 
 		// Create a secret
 		err = suite.SecretsService.SaveNewSecret(uniqueSecret.UniqueName, uniqueSecret.Value)
@@ -233,7 +238,7 @@ func TestMultipleSecretsManagement(t *testing.T) {
 		for _, secret := range uniqueSecrets {
 			secretNames = append(secretNames, secret.UniqueName)
 		}
-		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, secretNames)
+		defer func() { _ = testDataManager.CleanupUniqueSecretNames(suite.SecretsService, secretNames) }()
 
 		// Create all secrets first
 		for _, secret := range uniqueSecrets {
@@ -276,7 +281,7 @@ func TestDeleteOneOfMultipleSecrets(t *testing.T) {
 		for _, secret := range uniqueSecrets {
 			secretNames = append(secretNames, secret.UniqueName)
 		}
-		defer testDataManager.CleanupUniqueSecretNames(suite.SecretsService, secretNames)
+		defer func() { _ = testDataManager.CleanupUniqueSecretNames(suite.SecretsService, secretNames) }()
 
 		// Create all secrets first
 		for _, secret := range uniqueSecrets {

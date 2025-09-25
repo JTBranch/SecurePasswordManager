@@ -162,12 +162,9 @@ func (m *multiDiscoverySession) Devices() []transport.DeviceDescriptor {
 	out := make([]transport.DeviceDescriptor, 0)
 	for _, t := range m.trs {
 		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-		_ = ctx
 		// call Discover on each transport with a short timeout; ignore errors per-transport
-		if d, ok := t.(transport.DiscoverableTransport); ok {
-			devs, _ := d.Discover(context.Background(), 50)
-			out = append(out, devs...)
-		}
+		devs, _ := t.Discover(ctx, 50)
+		out = append(out, devs...)
 		cancel()
 	}
 	return out

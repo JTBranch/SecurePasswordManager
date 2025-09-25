@@ -220,6 +220,22 @@ func objectText(o fyne.CanvasObject) string {
 	return ""
 }
 
+// To satisfy linters in some CI setups, reference helper functions here so they are
+// considered used. This file intentionally does not contain a unit test; the helpers
+// are exercised by E2E tests. The assignments below prevent 'unused' warnings.
+var _ = findAllButtons
+var _ = findButtonByText
+var _ = findAllLabels
+var _ = findAllEntries
+var _ = findButtonByTextFromRoot
+var _ = awaitFindButtonByText
+var _ = awaitFindEntryByPlaceholder
+var _ = awaitFindObjectByText
+var _ = matchesObjectText
+var _ = findLabelByText
+var _ = findContainerContainingChild
+var _ = objectText
+
 // dumpCanvasDiagnostics walks the root and returns a slice of type/text diagnostics.
 func dumpCanvasDiagnostics(root fyne.CanvasObject) []string {
 	var out []string

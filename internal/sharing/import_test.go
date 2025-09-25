@@ -145,8 +145,7 @@ func TestImportSecretsReplayProtection(t *testing.T) {
 	keyBoxAAD = append(keyBoxAAD, signingPub...)
 	box, _ := crypto.WrapKeyBox(symKey, recipientPub, keyBoxAAD)
 	// Secrets AAD (domain separated)
-	secretsAAD := append(append([]byte{}, []byte(bundleID)...), 0x01)
-	secretsAAD = append(secretsAAD, signingPub...)
+	// secretsAAD was previously constructed for AAD checks; not needed in this test flow
 	// First decrypt call expectation
 	validJSON := `[{"Name":"test","Type":"password","Value":"secret","UpdatedAt":"123456789","Version":1}]`
 	cryptoProvider.On("DecryptSymmetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]byte(validJSON), nil).Once()

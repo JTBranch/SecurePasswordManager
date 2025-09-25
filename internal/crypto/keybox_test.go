@@ -26,13 +26,15 @@ func (r randReaderImpl) Read(p []byte) (int, error) { return rand.Read(p) }
 
 var testAAD = []byte("keybox-test-aad")
 
+const randErrMsg = "sym rand: %v"
+
 func TestKeyBoxRoundTrip(t *testing.T) {
 	priv := mustPriv(t)
 	pub, err := curve25519.X25519(priv, curve25519.Basepoint)
 	require.NoError(t, err, "pub gen: %v", err)
 	sym := make([]byte, 32)
 	if _, err := randReader.Read(sym); err != nil {
-		require.NoError(t, err, "sym rand: %v", err)
+		require.NoError(t, err, randErrMsg, err)
 	}
 	box, err := WrapKeyBox(sym, pub, testAAD)
 	require.NoError(t, err, "wrap: %v", err)
@@ -45,7 +47,9 @@ func TestKeyBoxWrongKey(t *testing.T) {
 	priv := mustPriv(t)
 	pub, _ := curve25519.X25519(priv, curve25519.Basepoint)
 	sym := make([]byte, 32)
-	randReader.Read(sym)
+	if _, err := randReader.Read(sym); err != nil {
+		require.NoError(t, err, "sym rand: %v", err)
+	}
 	box, err := WrapKeyBox(sym, pub, testAAD)
 	require.NoError(t, err, "wrap: %v", err)
 	wrongPriv := mustPriv(t)
@@ -57,7 +61,9 @@ func TestKeyBoxTruncated(t *testing.T) {
 	priv := mustPriv(t)
 	pub, _ := curve25519.X25519(priv, curve25519.Basepoint)
 	sym := make([]byte, 32)
-	randReader.Read(sym)
+	if _, err := randReader.Read(sym); err != nil {
+		require.NoError(t, err, "sym rand: %v", err)
+	}
 	box, _ := WrapKeyBox(sym, pub, testAAD)
 	for i := 0; i < len(box); i++ {
 		_, err := UnwrapKeyBox(box[:i], priv, testAAD)
@@ -69,7 +75,9 @@ func TestKeyBoxTamperCiphertext(t *testing.T) {
 	priv := mustPriv(t)
 	pub, _ := curve25519.X25519(priv, curve25519.Basepoint)
 	sym := make([]byte, 32)
-	randReader.Read(sym)
+	if _, err := randReader.Read(sym); err != nil {
+		require.NoError(t, err, "sym rand: %v", err)
+	}
 	box, _ := WrapKeyBox(sym, pub, testAAD)
 	if len(box) < 1+32+12+1 {
 		t.Skip("box too small for tamper")
@@ -84,7 +92,9 @@ func TestKeyBoxBadVersion(t *testing.T) {
 	priv := mustPriv(t)
 	pub, _ := curve25519.X25519(priv, curve25519.Basepoint)
 	sym := make([]byte, 32)
-	randReader.Read(sym)
+	if _, err := randReader.Read(sym); err != nil {
+		require.NoError(t, err, "sym rand: %v", err)
+	}
 	box, _ := WrapKeyBox(sym, pub, testAAD)
 	box[0] = 9
 	_, err := UnwrapKeyBox(box, priv, testAAD)
@@ -95,7 +105,9 @@ func TestKeyBoxAADMismatch(t *testing.T) {
 	priv := mustPriv(t)
 	pub, _ := curve25519.X25519(priv, curve25519.Basepoint)
 	sym := make([]byte, 32)
-	randReader.Read(sym)
+	if _, err := randReader.Read(sym); err != nil {
+		require.NoError(t, err, "sym rand: %v", err)
+	}
 	box, _ := WrapKeyBox(sym, pub, []byte("aad-one"))
 	_, err := UnwrapKeyBox(box, priv, []byte("aad-two"))
 	require.Error(t, err, "expected failure on AAD mismatch")

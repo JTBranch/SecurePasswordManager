@@ -57,6 +57,18 @@ powershell -Command ^
          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/configs/default.yaml' -OutFile '%INSTALL_DIR%\configs\default.yaml' -ErrorAction SilentlyContinue; ^
      }"
 
+REM Try to download an ICO icon for the shortcut
+powershell -Command ^
+    "$latest = Invoke-RestMethod 'https://api.github.com/repos/JTBranch/SecurePasswordManager/releases/latest'; ^
+     $ico = $latest.assets | Where-Object { $_.name -like '*main-icon*.ico' }; ^
+     if ($ico) { ^
+         Write-Host '🖼️  Downloading icon'; ^
+         Invoke-WebRequest -Uri $ico.browser_download_url -OutFile '%INSTALL_DIR%\main-icon.ico'; ^
+     } else { ^
+         Write-Host '🖼️  No ICO in release; fetching default icon from repository'; ^
+         Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/ui/assets/main-icon.ico' -OutFile '%INSTALL_DIR%\main-icon.ico' -ErrorAction SilentlyContinue; ^
+     }"
+
 echo.
 echo 🎉 Installation Complete!
 echo.
@@ -81,10 +93,20 @@ REM Update desktop shortcut to point to launcher
 echo Set oWS = WScript.CreateObject("WScript.Shell") > "%TEMP%\updateShortcut.vbs"
 echo sLinkFile = "%DESKTOP%\Password Manager.lnk" >> "%TEMP%\updateShortcut.vbs"
 echo Set oLink = oWS.CreateShortcut(sLinkFile) >> "%TEMP%\updateShortcut.vbs"
-echo oLink.TargetPath = "%INSTALL_DIR%\launch-password-manager.cmd" >> "%TEMP%\updateShortcut.vbs"
-echo oLink.WorkingDirectory = "%INSTALL_DIR%" >> "%TEMP%\updateShortcut.vbs"
-echo oLink.Description = "Go Password Manager" >> "%TEMP%\updateShortcut.vbs"
-echo oLink.Save >> "%TEMP%\updateShortcut.vbs"
+cscript /nologo "%TEMP%\updateShortcut.vbs"
+del "%TEMP%\updateShortcut.vbs"
+
+REM Re-create the shortcut and set the icon if present
+echo Set oWS = WScript.CreateObject("WScript.Shell") > "%TEMP%\createShortcut2.vbs"
+echo sLinkFile = "%DESKTOP%\Password Manager.lnk" >> "%TEMP%\createShortcut2.vbs"
+echo Set oLink = oWS.CreateShortcut(sLinkFile) >> "%TEMP%\createShortcut2.vbs"
+echo oLink.TargetPath = "%INSTALL_DIR%\launch-password-manager.cmd" >> "%TEMP%\createShortcut2.vbs"
+echo oLink.WorkingDirectory = "%INSTALL_DIR%" >> "%TEMP%\createShortcut2.vbs"
+echo oLink.Description = "Go Password Manager" >> "%TEMP%\createShortcut2.vbs"
+echo If oFS.FileExists("%INSTALL_DIR%\main-icon.ico") Then oLink.IconLocation = "%INSTALL_DIR%\main-icon.ico" >> "%TEMP%\createShortcut2.vbs"
+echo oLink.Save >> "%TEMP%\createShortcut2.vbs"
+cscript /nologo "%TEMP%\createShortcut2.vbs"
+del "%TEMP%\createShortcut2.vbs"
 cscript /nologo "%TEMP%\updateShortcut.vbs"
 del "%TEMP%\updateShortcut.vbs"
 

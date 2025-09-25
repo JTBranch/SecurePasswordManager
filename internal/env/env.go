@@ -122,8 +122,7 @@ func (c *Config) GetSecretsFilePath() string {
 		return DefaultSecretsFileName // Fallback
 	}
 	appConfigDir := filepath.Join(configDir, c.AppName)
-	err = os.MkdirAll(appConfigDir, 0700)
-	if err != nil {
+	if err := os.MkdirAll(appConfigDir, 0700); err != nil {
 		return DefaultSecretsFileName // Fallback
 	}
 	return filepath.Join(appConfigDir, DefaultSecretsFileName)
@@ -149,7 +148,9 @@ func (c *Config) GetConfigFilePath() string {
 		return DefaultConfigFileName // Fallback
 	}
 	appConfigDir := filepath.Join(configDir, c.AppName)
-	os.MkdirAll(appConfigDir, 0700)
+	if err := os.MkdirAll(appConfigDir, 0700); err != nil {
+		return DefaultConfigFileName // Fallback
+	}
 	return filepath.Join(appConfigDir, DefaultConfigFileName)
 }
 

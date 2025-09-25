@@ -85,9 +85,9 @@ func AppHeader(props AppHeaderProps, win fyne.Window) fyne.CanvasObject {
 		img.SetMinSize(fyne.NewSize(36, 36))
 		// Put the image inside a fixed-size box so it won't collapse/stetch in different layouts
 		// use a transparent rectangle to force a fixed box size, then overlay the image
-		rect := canvas.NewRectangle(theme.BackgroundColor())
+		rect := canvas.NewRectangle(theme.Color(theme.ColorNameBackground))
 		rect.SetMinSize(fyne.NewSize(48, 48))
-		box := container.NewMax(rect, img)
+		box := container.NewStack(rect, img)
 		logo = container.NewCenter(box)
 	} else {
 		// fallback simple label centered

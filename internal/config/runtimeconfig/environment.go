@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	buildconfig "go-password-manager/internal/config/buildconfig"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -109,7 +108,7 @@ func GetEnvironmentConfig() (*EnvironmentConfig, error) {
 
 // loadYAMLConfigFile loads a YAML configuration file
 func loadYAMLConfigFile(filepath string) (*EnvironmentConfig, error) {
-	data, err := ioutil.ReadFile(filepath)
+	data, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +292,9 @@ func (c *EnvironmentConfig) GetSecretsFilePath() string {
 		return c.Storage.SecretsFile // Fallback
 	}
 	appConfigDir := filepath.Join(configDir, c.Application.Name)
-	os.MkdirAll(appConfigDir, 0700)
+	if err := os.MkdirAll(appConfigDir, 0700); err != nil {
+		return c.Storage.SecretsFile // Fallback
+	}
 	return filepath.Join(appConfigDir, c.Storage.SecretsFile)
 }
 
@@ -319,7 +320,9 @@ func (c *EnvironmentConfig) GetConfigFilePath() string {
 		return c.Storage.ConfigFile // Fallback
 	}
 	appConfigDir := filepath.Join(configDir, c.Application.Name)
-	os.MkdirAll(appConfigDir, 0700)
+	if err := os.MkdirAll(appConfigDir, 0700); err != nil {
+		return c.Storage.ConfigFile // Fallback
+	}
 	return filepath.Join(appConfigDir, c.Storage.ConfigFile)
 }
 

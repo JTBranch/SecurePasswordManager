@@ -10,6 +10,8 @@ A secure, cross-platform password manager with a modern GUI interface.
 curl -fsSL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-macos.sh | bash
 ```
 
+Notes: the macOS installer now creates a native `.app` bundle in `~/Applications/PasswordManager/PasswordManager.app` so the system shows the correct Dock icon. The installer also sets the application environment to `production` when launched via the provided shortcuts.
+
 ### 🪟 **Windows** (Windows users)
 
 1. Download: [install-windows.bat](https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/install-windows.bat)
@@ -30,6 +32,12 @@ After installation, you can run the password manager:
 
 - Double-click "Password Manager.command" on your Desktop
 - Or run from Terminal: `~/Applications/PasswordManager/password-manager`
+
+Note: On macOS the installer now creates `PasswordManager.app`. To open the packaged app run:
+
+```bash
+open ~/Applications/PasswordManager/PasswordManager.app
+```
 
 ### 🪟 **Windows**
 
@@ -81,6 +89,12 @@ If you prefer to download manually:
 git clone https://github.com/JTBranch/SecurePasswordManager.git
 cd SecurePasswordManager
 make build
+```
+
+Smoke test after installing (example):
+
+```bash
+./scripts/smoke-test-installed.sh ~/Applications/PasswordManager/PasswordManager.app/Contents/MacOS/password-manager
 ```
 
 ---

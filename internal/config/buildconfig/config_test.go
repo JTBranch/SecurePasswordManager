@@ -60,8 +60,9 @@ func TestEnvironmentOverrides(t *testing.T) {
 	ResetCacheForTest()
 
 	// Change to project root for test
-	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
+	originalDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	if err := os.Chdir("../../"); err != nil {
 		t.Skipf("Could not change to project root: %v", err)
@@ -108,9 +109,11 @@ func TestEnvironmentDetection(t *testing.T) {
 func TestDynamicConfigMerging(t *testing.T) {
 	t.Run("Test Config Merging", (func(t *testing.T) {
 		// Set working directory to configDir for test
-		oldWd, _ := os.Getwd()
-		os.Chdir("")
-		defer os.Chdir(oldWd)
+		oldWd, err := os.Getwd()
+		require.NoError(t, err)
+		// Intentionally change to project root for test; ignore error when restoring
+		_ = os.Chdir("")
+		defer func() { _ = os.Chdir(oldWd) }()
 
 		// Set env so Load() picks up development.yaml
 		os.Setenv("GO_PASSWORD_MANAGER_ENV", "development")

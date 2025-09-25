@@ -75,11 +75,55 @@ chmod +x "$INSTALL_DIR/launch-password-manager.sh"
 DESKTOP_FILE="$HOME/Desktop/Password Manager.command"
 cat > "$DESKTOP_FILE" << EOF
 #!/bin/bash
-cd "$INSTALL_DIR"
-export GO_PASSWORD_MANAGER_ENV=production
-./password-manager
+open "$INSTALL_DIR/PasswordManager.app"
 EOF
 chmod +x "$DESKTOP_FILE"
+
+# Create a minimal macOS .app bundle so the Dock shows the correct icon
+APP_BUNDLE="$INSTALL_DIR/PasswordManager.app"
+APP_CONTENTS="$APP_BUNDLE/Contents"
+APP_MACOS="$APP_CONTENTS/MacOS"
+APP_RESOURCES="$APP_CONTENTS/Resources"
+mkdir -p "$APP_MACOS" "$APP_RESOURCES"
+
+# Copy the binary into the app bundle
+cp "$INSTALL_DIR/password-manager" "$APP_MACOS/password-manager"
+chmod +x "$APP_MACOS/password-manager"
+
+# Try to download an .icns asset from the release, else fall back to raw repo
+ICON_URL=$(echo "$LATEST_RELEASE" | grep "browser_download_url.*\.icns" | cut -d '"' -f 4)
+if [[ -n "$ICON_URL" ]]; then
+    curl -L -o "$APP_RESOURCES/main-icon.icns" "$ICON_URL"
+else
+    curl -sL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/ui/assets/main-icon.icns -o "$APP_RESOURCES/main-icon.icns" || true
+fi
+
+# Create a basic Info.plist
+cat > "$APP_CONTENTS/Info.plist" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>Go Password Manager</string>
+  <key>CFBundleDisplayName</key>
+  <string>Go Password Manager</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.jtbranch.gopasswordmanager</string>
+  <key>CFBundleExecutable</key>
+  <string>password-manager</string>
+  <key>CFBundleIconFile</key>
+  <string>main-icon</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>10.12</string>
+</dict>
+</plist>
+PLIST
+
+# Ensure LaunchServices recognizes the new app bundle (best-effort)
+if command -v /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister >/dev/null 2>&1; then
+    /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_BUNDLE" >/dev/null 2>&1 || true
+fi
 
 echo ""
 echo "🎉 Installation Complete!"

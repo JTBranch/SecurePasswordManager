@@ -58,13 +58,22 @@ fi
 if [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
     DESKTOP_DIR="$HOME/.local/share/applications"
     mkdir -p "$DESKTOP_DIR"
-    
+
+    # Try to download a PNG icon and save next to the binary
+    ICON_URL=$(echo "$LATEST_RELEASE" | grep "browser_download_url.*main-icon.*\\.png" | cut -d '"' -f 4)
+    ICON_PATH="$INSTALL_DIR/main-icon.png"
+    if [[ -n "$ICON_URL" ]]; then
+        curl -L -o "$ICON_PATH" "$ICON_URL" || true
+    else
+        curl -sL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/ui/assets/main-icon.png -o "$ICON_PATH" || true
+    fi
+
     cat > "$DESKTOP_DIR/password-manager.desktop" << EOF
 [Desktop Entry]
 Name=Go Password Manager
 Comment=Secure password management application
 Exec=env GO_PASSWORD_MANAGER_ENV=production $INSTALL_DIR/password-manager
-Icon=applications-utilities
+Icon=$ICON_PATH
 Terminal=false
 Type=Application
 Categories=Utility;Security;

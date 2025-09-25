@@ -2,7 +2,6 @@ package buildconfig
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -66,7 +65,7 @@ func GetEnvironmentConfig() (*EnvironmentConfig, error) {
 
 // loadYAMLConfigFile loads a YAML configuration file
 func loadYAMLConfigFile(filepath string) (*EnvironmentConfig, error) {
-	data, err := ioutil.ReadFile(filepath)
+	data, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +249,11 @@ func (c *EnvironmentConfig) GetSecretsFilePath() string {
 		return c.Storage.SecretsFile // Fallback
 	}
 	appConfigDir := filepath.Join(configDir, c.Application.Name)
-	os.MkdirAll(appConfigDir, 0700)
+	if err := os.MkdirAll(appConfigDir, 0700); err != nil {
+		// Can't create the directory; log and fall back to returning the intended path
+		fmt.Fprintf(os.Stderr, "warning: failed to create application config directory %s: %v\n", appConfigDir, err)
+		return filepath.Join(appConfigDir, c.Storage.SecretsFile)
+	}
 	return filepath.Join(appConfigDir, c.Storage.SecretsFile)
 }
 
@@ -276,7 +279,11 @@ func (c *EnvironmentConfig) GetConfigFilePath() string {
 		return c.Storage.ConfigFile // Fallback
 	}
 	appConfigDir := filepath.Join(configDir, c.Application.Name)
-	os.MkdirAll(appConfigDir, 0700)
+	if err := os.MkdirAll(appConfigDir, 0700); err != nil {
+		// Can't create the directory; log and fall back to returning the intended path
+		fmt.Fprintf(os.Stderr, "warning: failed to create application config directory %s: %v\n", appConfigDir, err)
+		return filepath.Join(appConfigDir, c.Storage.ConfigFile)
+	}
 	return filepath.Join(appConfigDir, c.Storage.ConfigFile)
 }
 

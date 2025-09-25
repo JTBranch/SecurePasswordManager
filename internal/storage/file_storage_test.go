@@ -67,7 +67,9 @@ func TestSecretStorage(t *testing.T) {
 			_ = os.RemoveAll(TestFileStoragePath)
 		})
 
-		os.WriteFile(TestFileStoragePath, []byte("invalid json"), 0644)
+		if err := os.WriteFile(TestFileStoragePath, []byte("invalid json"), 0644); err != nil {
+			require.NoError(t, err, "failed to write invalid json fixture")
+		}
 
 		storage := storage.NewFileStorage(TestFileStoragePath, TestFileStorageVersion, TestFileStorageUser)
 
