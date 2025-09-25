@@ -197,6 +197,8 @@ jobs:
 
       - name: Upload DMG file
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.resolve_upload.outputs.upload_url }}
           asset_path: ${{ steps.create_dmg.outputs.dmg_path }}
