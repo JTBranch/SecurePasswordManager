@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag to attach the DMG to (optional). If empty the job will prefer the release event tag or default to development.'
+        description: "Release tag to attach the DMG to (optional). If empty the job will prefer the release event tag or default to development."
         required: false
 
 jobs:
@@ -68,14 +68,18 @@ jobs:
           else
             ARCH=macos-amd64
           fi
-          # Compute VERSION: precedence is workflow input -> release event tag -> default 'development'
+          # Compute VERSION_BASE: precedence is workflow input -> release event tag -> default 'development'
           if [[ -n "$INPUT_TAG" && "$INPUT_TAG" != 'null' ]]; then
-            VERSION="$INPUT_TAG"
+            VERSION_BASE="$INPUT_TAG"
           elif [[ -n "$RELEASE_TAG" && "$RELEASE_TAG" != 'null' ]]; then
-            VERSION="$RELEASE_TAG"
+            VERSION_BASE="$RELEASE_TAG"
           else
-            VERSION="development"
+            VERSION_BASE="development"
           fi
+
+          # Append a UTC timestamp to make the DMG filename unambiguous
+          TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          VERSION="${VERSION_BASE}-${TIMESTAMP}"
 
           echo "Using VERSION=$VERSION and ARCH=$ARCH"
 
@@ -105,16 +109,24 @@ jobs:
 
           # Debug: verify DMG was created and show contents for easier troubleshooting in Actions logs
           DMG_PATH="dist/macos-dmg/GoPasswordManager-${VERSION}-${ARCH}.dmg"
+          # If the expected path doesn't exist, pick the single .dmg in the folder (if any)
+          if [[ ! -f "$DMG_PATH" ]]; then
+            DMG_PATH=$(ls dist/macos-dmg/*.dmg 2>/dev/null | head -n1 || true)
+          fi
           echo "Looking for DMG at: $DMG_PATH"
           echo "Listing dist/macos-dmg contents:" && ls -la dist/macos-dmg || true
-          if [[ ! -f "$DMG_PATH" ]]; then
+          if [[ -z "$DMG_PATH" || ! -f "$DMG_PATH" ]]; then
             echo "ERROR: expected DMG not found: $DMG_PATH" >&2
             echo "Contents of dist/macos-dmg:" && ls -la dist/macos-dmg || true
             exit 2
           fi
-          echo "DMG present: $(stat -f '%z bytes' "$DMG_PATH" || stat -c '%s bytes' "$DMG_PATH" || true)"
+          DMG_SIZE=$(stat -f '%z' "$DMG_PATH" 2>/dev/null || stat -c '%s' "$DMG_PATH" 2>/dev/null || echo 0)
+          echo "DMG present: $DMG_SIZE bytes"
 
-          # Export the computed version for downstream steps
+          # Export outputs for downstream steps
+          DMG_NAME=$(basename "$DMG_PATH")
+          echo "dmg_path=$DMG_PATH" >> $GITHUB_OUTPUT
+          echo "dmg_name=$DMG_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Resolve release upload URL (for manual runs)
@@ -147,8 +159,8 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.resolve_upload.outputs.upload_url }}
-          asset_path: dist/macos-dmg/GoPasswordManager-${{ steps.create_dmg.outputs.version }}-${{ steps.arch.outputs.arch_name }}.dmg
-          asset_name: GoPasswordManager-${{ steps.create_dmg.outputs.version }}-${{ steps.arch.outputs.arch_name }}.dmg
+          asset_path: ${{ steps.create_dmg.outputs.dmg_path }}
+          asset_name: ${{ steps.create_dmg.outputs.dmg_name }}
           asset_content_type: application/x-apple-diskimage
 
       - name: Note about signing
