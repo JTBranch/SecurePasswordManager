@@ -71,13 +71,28 @@ export GO_PASSWORD_MANAGER_ENV=production
 EOF
 chmod +x "$INSTALL_DIR/launch-password-manager.sh"
 
-# Create desktop shortcut (optional)
-DESKTOP_FILE="$HOME/Desktop/Password Manager.command"
-cat > "$DESKTOP_FILE" << EOF
+# Create a user-friendly Desktop launcher that doesn't open Terminal.
+# Prefer creating a small AppleScript-based app using osacompile so the launcher
+# does not spawn a Terminal and therefore won't source the user's shell rc files.
+LAUNCHER_APP="$HOME/Desktop/Password Manager.app"
+if command -v osacompile >/dev/null 2>&1; then
+    echo "📌 Creating Desktop launcher app..."
+    /usr/bin/env osacompile -o "$LAUNCHER_APP" <<AS
+on run
+    -- Launch the installed app bundle
+    do shell script "open '$APP_BUNDLE'"
+end run
+AS
+else
+    # Fallback: create a .command file (will open Terminal when run)
+    DESKTOP_FILE="$HOME/Desktop/Password Manager.command"
+    cat > "$DESKTOP_FILE" << EOF
 #!/bin/bash
-open "$INSTALL_DIR/PasswordManager.app"
+open "$APP_BUNDLE"
 EOF
-chmod +x "$DESKTOP_FILE"
+    chmod +x "$DESKTOP_FILE"
+    echo "📌 Created Desktop launcher script (Password Manager.command)."
+fi
 
 # Create a minimal macOS .app bundle so the Dock shows the correct icon
 APP_BUNDLE="$INSTALL_DIR/PasswordManager.app"

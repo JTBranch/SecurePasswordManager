@@ -1,0 +1,97 @@
+name: Build and upload macOS DMG
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-dmg:
+    name: Build macOS DMG and upload
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/*.sh
+
+      - name: Determine runner architecture
+        id: arch
+        run: |
+          runner_arch=$(uname -m)
+          if [[ "$runner_arch" == "arm64" ]]; then
+            arch_name=macos-arm64
+          else
+            arch_name=macos-amd64
+          fi
+          echo "runner_arch=$runner_arch" >> $GITHUB_OUTPUT
+          echo "arch_name=$arch_name" >> $GITHUB_OUTPUT
+
+      - name: Build for native arch
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+          COMMIT: ${{ github.sha }}
+          DATE: ${{ github.event.release.published_at }}
+        run: |
+          if [[ "${{ steps.arch.outputs.runner_arch }}" == "arm64" ]]; then
+            ARCH=macos-arm64
+          else
+            ARCH=macos-amd64
+          fi
+          echo "Building for $ARCH"
+          ./scripts/build-macos.sh "$VERSION" "$COMMIT" "$DATE"
+
+      - name: Create DMG
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MACOS_SIGNING_P12_BASE64: ${{ secrets.MACOS_SIGNING_P12_BASE64 }}
+          APPLE_NOTARIZE_USERNAME: ${{ secrets.APPLE_NOTARIZE_USERNAME }}
+          APPLE_NOTARIZE_PASSWORD: ${{ secrets.APPLE_NOTARIZE_PASSWORD }}
+        run: |
+          if [[ "${{ steps.arch.outputs.runner_arch }}" == "arm64" ]]; then
+            ARCH=macos-arm64
+          else
+            ARCH=macos-amd64
+          fi
+          # First assemble the app so we can codesign / notarize if creds are available
+          ./scripts/create-macos-dmg.sh "$ARCH" "$VERSION" assemble
+
+          ASSEMBLED_APP=dist/macos-dmg/PasswordManager.app
+
+          # Optionally codesign if credentials provided
+          if [[ -n "$MACOS_SIGNING_IDENTITY" && -n "$APPLE_NOTARIZE_USERNAME" ]]; then
+            echo "Signing app with identity from secrets..."
+            security create-keychain -p actions build.keychain || true
+            # Import signing key (expecting a base64-encoded p12 in MACOS_SIGNING_P12_BASE64)
+            echo "$MACOS_SIGNING_P12_BASE64" | base64 --decode > /tmp/signing.p12
+            # Note: securely importing cert requires further setup; placeholder shown here
+            echo "(Signing steps placeholder - configure keychain and import signing certificate)"
+            # Example (commented):
+            # security import /tmp/signing.p12 -k ~/Library/Keychains/login.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
+            # codesign -s "$MACOS_SIGNING_IDENTITY" --deep --force "$ASSEMBLED_APP"
+            # After creating a signed DMG, submit for notarization with xcrun altool or notarytool
+          else
+            echo "No signing/notarization secrets provided; skipping codesign/notarize."
+          fi
+
+          # Create the DMG from assembled (signed or unsigned) app
+          ./scripts/create-macos-dmg.sh "$ARCH" "$VERSION"
+
+      - name: Upload DMG file
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: dist/macos-dmg/GoPasswordManager-${{ github.event.release.tag_name }}-${{ steps.arch.outputs.arch_name }}.dmg
+          asset_name: GoPasswordManager-${{ github.event.release.tag_name }}-${{ steps.arch.outputs.arch_name }}.dmg
+          asset_content_type: application/x-apple-diskimage
+
+      - name: Note about signing
+        run: |
+          echo "Built DMG is unsigned. For Gatekeeper-friendly releases sign & notarize the .app before packaging."
