@@ -7,6 +7,10 @@ logging:
   level: "debug"
   format: "console"
 
+security:
+  keyring:
+    in_memory: true
+
 testing:
   timeout: "10s"
   parallel: true

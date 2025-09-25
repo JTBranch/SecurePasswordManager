@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestWrapper wraps a test function with comprehensive reporting
@@ -107,9 +109,7 @@ func (tw *TestWrapper) CaptureScreenshot(name string) {
 // WithReporting is a helper function to wrap test execution with reporting
 func WithReporting(t *testing.T, testName string, testFunc func(*TestWrapper)) {
 	wrapper, err := NewTestWrapper(t, testName)
-	if err != nil {
-		t.Fatalf("Failed to create test wrapper: %v", err)
-	}
+	require.NoError(t, err, "Failed to create test wrapper")
 	defer wrapper.Finish()
 
 	testFunc(wrapper)

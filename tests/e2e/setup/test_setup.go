@@ -2,7 +2,9 @@ package setup
 
 import (
 	"fmt"
+	"go-password-manager/internal/config/devicekeys"
 	config "go-password-manager/internal/config/runtimeconfig"
+	"go-password-manager/internal/config/secretkeymetadata"
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/storage"
 	"os"
@@ -12,9 +14,11 @@ import (
 
 	buildconfig "go-password-manager/internal/config/buildconfig"
 	"go-password-manager/internal/service"
+	"go-password-manager/ui"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -24,12 +28,13 @@ const (
 
 // E2ETestSuite holds the test environment setup
 type E2ETestSuite struct {
-	testDataDir    string
-	originalEnv    string
-	app            fyne.App
-	Window         fyne.Window
-	SecretsService *service.SecretsService
-	t              *testing.T
+	testDataDir      string
+	originalEnv      string
+	app              fyne.App
+	Window           fyne.Window
+	SecretsService   *service.SecretsService
+	DeviceKeyManager *crypto.DeviceKeyManager
+	t                *testing.T
 }
 
 // NewE2ETestSuite creates a new E2E test suite
@@ -45,9 +50,7 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 		// Create isolated test environment
 		testDir := filepath.Join(os.TempDir(), fmt.Sprintf("go-password-manager-e2e-%d", time.Now().UnixNano()))
 		err := os.MkdirAll(testDir, 0755)
-		if err != nil {
-			suite.t.Fatalf("Failed to create test directory: %v", err)
-		}
+		require.NoError(suite.t, err, "Failed to create test directory")
 		suite.testDataDir = testDir
 		suite.t.Logf("E2E test environment created at: %s", testDir)
 	} else {
@@ -56,47 +59,46 @@ func (suite *E2ETestSuite) SetupTestEnvironment() {
 
 	// Set environment to use test directory
 	suite.originalEnv = os.Getenv("GO_PASSWORD_MANAGER_ENV")
-	os.Setenv("GO_PASSWORD_MANAGER_ENV", "e2e-test")
+	os.Setenv("GO_PASSWORD_MANAGER_ENV", "test")
 	os.Setenv("TEST_DATA_DIR", suite.testDataDir)
 
-	// Reset global environment config to pick up test settings
-	if _, err := buildconfig.Load(); err != nil {
-		suite.t.Fatalf("Failed to load build configuration: %v", err)
-	}
+	// Reset cached build config so tests pick up the test environment and in-memory flags
+	buildconfig.ResetCacheForTest()
 
-	// Create test application
+	// Create test application (headless) and window for UI interaction
 	suite.app = test.NewApp()
-	suite.Window = test.NewWindow(nil)
-	suite.Window.Resize(fyne.NewSize(1200, 800))
+	testWin := test.NewWindow(nil)
+	testWin.Resize(fyne.NewSize(1200, 800))
 
 	// Initialize services
 	buildCfg, err := buildconfig.Load()
-	if err != nil {
-		suite.t.Fatalf("Failed to load build config: %v", err)
-	}
+	require.NoError(suite.t, err, "Failed to load build config")
 	configService, err := config.NewConfigService(buildCfg)
-	if err != nil {
-		suite.t.Fatalf("Failed to create config service: %v", err)
-	}
-	cryptoService, err := crypto.NewCryptoService(configService)
-	if err != nil {
-		suite.t.Fatalf("Failed to create crypto service: %v", err)
-	}
+	require.NoError(suite.t, err, "Failed to create config service")
+	secretsKeyProvider, err := secretkeymetadata.NewSecretKeyMetadataFileService(buildCfg)
+	require.NoError(suite.t, err, "Failed to create secrets key provider")
+	secretsEncryptionKeyManager, err := crypto.NewSecretsEncryptionKeyManager(configService, secretsKeyProvider)
+	require.NoError(suite.t, err, "Failed to create secrets encryption key manager")
+	cryptoService, err := crypto.NewCryptoServiceDefault(configService, secretsEncryptionKeyManager)
+	require.NoError(suite.t, err, "Failed to create crypto service")
 	secretsPath, err := buildCfg.GetSecretsFilePath()
-	if err != nil {
-		suite.t.Fatalf("Failed to get secrets file path: %v", err)
-	}
+	require.NoError(suite.t, err, "Failed to get secrets file path")
 	storageService := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "e2e-user")
 	suite.SecretsService = service.NewSecretsService(cryptoService, storageService)
+	deviceKeyFileSvc := devicekeys.NewDeviceKeyFileService(buildCfg)
+	suite.DeviceKeyManager, err = crypto.NewDeviceKeyManager(cryptoService, &crypto.PemUtils{}, deviceKeyFileSvc)
+	require.NoError(suite.t, err, "Failed to create device key manager")
+	// Build the UI app backed by the test app and window to allow real UI interactions via fyne/test
+	uiApp := ui.NewAppWithFyne(suite.app, testWin, buildCfg, suite.SecretsService, nil)
+	uiApp.Start()
+	suite.Window = testWin
+	// In-memory keyring & device key storage now configured within constructors based on build configuration.
 }
 
 // SetTestDataDir sets the test data directory (for reusing existing test data)
 func (suite *E2ETestSuite) SetTestDataDir(dataDir string) {
 	suite.testDataDir = dataDir
 	os.Setenv("TEST_DATA_DIR", dataDir)
-	if _, err := buildconfig.Load(); err != nil {
-		suite.t.Fatalf("Failed to load build configuration: %v", err)
-	}
 }
 
 // GetTestDataDir returns the test data directory path
@@ -122,12 +124,19 @@ func (suite *E2ETestSuite) Cleanup() {
 	os.Unsetenv("TEST_DATA_DIR")
 
 	// Reload environment configuration to reset to defaults
+	buildconfig.ResetCacheForTest()
 	buildconfig.Load()
 
 	// Clean up test directory
 	err := os.RemoveAll(suite.testDataDir)
 	if err != nil {
 		suite.t.Logf("Warning: Failed to clean up test directory %s: %v", suite.testDataDir, err)
+	}
+
+	// Attempt to delete any device keys we created during the test run to avoid polluting the user's keychain.
+	if suite.DeviceKeyManager != nil {
+		_ = suite.DeviceKeyManager.DeleteEncryptionDeviceKey()
+		_ = suite.DeviceKeyManager.DeleteSigningDeviceKey()
 	}
 }
 

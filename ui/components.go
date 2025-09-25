@@ -3,6 +3,8 @@ package ui
 import (
 	buildconfig "go-password-manager/internal/config/buildconfig"
 	config "go-password-manager/internal/config/runtimeconfig"
+	"go-password-manager/internal/config/secretkeymetadata"
+
 	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/logger"
@@ -18,7 +20,11 @@ import (
 
 var secretsService *service.SecretsService
 
-func init() {
+// ensureServicesInitialized lazily initializes the secrets service and related dependencies.
+func ensureServicesInitialized() {
+	if secretsService != nil {
+		return
+	}
 	buildCfg, err := buildconfig.Load()
 	if err != nil {
 		log.Fatalf("Failed to load build config: %v", err)
@@ -27,7 +33,15 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to create config service: %v", err)
 	}
-	cryptoService, err := crypto.NewCryptoService(configService)
+	secretsKeymetadataProvider, err := secretkeymetadata.NewSecretKeyMetadataFileService(buildCfg)
+	if err != nil {
+		log.Fatalf("Failed to create secrets key metadata provider: %v", err)
+	}
+	secretsEncryptionKeyManager, err := crypto.NewSecretsEncryptionKeyManager(configService, secretsKeymetadataProvider)
+	if err != nil {
+		log.Fatalf("Failed to create secrets encryption key manager: %v", err)
+	}
+	cryptoService, err := crypto.NewCryptoServiceDefault(configService, secretsEncryptionKeyManager)
 	if err != nil {
 		log.Fatalf("Failed to create crypto service: %v", err)
 	}
@@ -42,6 +56,7 @@ func init() {
 // CreateMainContent creates the main content of the window, including the secret form and secret list
 func CreateMainContent(window fyne.Window) fyne.CanvasObject {
 	logger.Debug("Creating main content for the UI")
+	ensureServicesInitialized()
 	fileData, _ := secretsService.LoadAllSecrets()
 	var selectedIdx int = -1
 

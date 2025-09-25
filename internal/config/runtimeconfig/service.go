@@ -6,6 +6,7 @@ import (
 	"os"
 
 	buildconfig "go-password-manager/internal/config/buildconfig"
+	"go-password-manager/internal/logger"
 
 	"github.com/google/uuid"
 )
@@ -113,5 +114,8 @@ func (cs *ConfigService) GetTheme() string {
 
 func (cs *ConfigService) SetTheme(theme string) {
 	cs.Config.Theme = theme
-	cs.Save()
+	err := cs.Save()
+	if err != nil {
+		logger.Error("Error saving config after setting theme", err)
+	}
 }

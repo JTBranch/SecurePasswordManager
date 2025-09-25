@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -40,13 +41,15 @@ type WindowConfig struct {
 }
 
 type LoggingConfig struct {
-	Debug  bool   `yaml:"debug"`
-	Level  string `yaml:"level"`
-	Format string `yaml:"format"`
+	Debug            bool   `yaml:"debug"`
+	Level            string `yaml:"level"`
+	Format           string `yaml:"format"`
+	UseUserConfigDir bool   `yaml:"useUserConfigDir"`
 }
 
 type SecurityConfig struct {
 	Encryption EncryptionConfig `yaml:"encryption"`
+	Keyring    KeyringConfig    `yaml:"keyring"`
 }
 
 type EncryptionConfig struct {
@@ -54,9 +57,15 @@ type EncryptionConfig struct {
 	Algorithm string `yaml:"algorithm"`
 }
 
+type KeyringConfig struct {
+	InMemory bool `yaml:"in_memory"`
+}
+
 type StorageConfig struct {
-	SecretsFile string `yaml:"secrets_file"`
-	ConfigFile  string `yaml:"config_file"`
+	SecretsFile            string `yaml:"secrets_file"`
+	ConfigFile             string `yaml:"config_file"`
+	DeviceKeysFile         string `yaml:"device_keys_file"`
+	SecretsKeyMetadataFile string `yaml:"secrets_key_metadata_file"`
 }
 
 type DevelopmentConfig struct {
@@ -73,6 +82,13 @@ type TestingConfig struct {
 
 // findProjectRoot finds the root of the project by looking for go.mod
 func findProjectRoot() (string, error) {
+	// Allow overriding the project root via environment variable (useful in containers).
+	if env := os.Getenv("GO_PASSWORD_MANAGER_PROJECT_ROOT"); env != "" {
+		if _, err := os.Stat(filepath.Join(env, "go.mod")); err == nil {
+			return env, nil
+		}
+	}
+
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -90,45 +106,59 @@ func findProjectRoot() (string, error) {
 }
 
 var globalConfig *Config
+var loadOnce sync.Once
+var loadErr error
 
 // Load loads configuration from YAML files and environment variables
 func Load() (*Config, error) {
-	// Determine environment
-	env := os.Getenv("GO_PASSWORD_MANAGER_ENV")
-	if env == "" {
-		env = "development" // Default to development
-	}
-
-	root, err := findProjectRoot()
-	if err != nil {
-		return nil, fmt.Errorf("failed to find project root: %w", err)
-	}
-
-	// Always load default config first
-	defaultConfigPath := filepath.Join(root, "configs", "default.yaml")
-	defaultConfig, err := loadConfigFile(defaultConfigPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load default config: %w", err)
-	}
-
-	// Try to load environment-specific config and merge dynamically
-	envConfigPath := filepath.Join(root, "configs", fmt.Sprintf("%s.yaml", env))
-	var config *Config
-	if _, statErr := os.Stat(envConfigPath); statErr == nil {
-		envConfig, err := loadConfigFile(envConfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load %s config: %w", env, err)
+	loadOnce.Do(func() {
+		// Determine environment
+		env := os.Getenv("GO_PASSWORD_MANAGER_ENV")
+		if env == "" {
+			env = "development" // Default to development
 		}
-		config = mergeConfigDynamic(defaultConfig, envConfig)
-	} else {
-		config = defaultConfig
-	}
 
-	// Apply environment variable overrides
-	applyEnvOverrides(config)
+		root, err := findProjectRoot()
+		if err != nil {
+			loadErr = fmt.Errorf("failed to find project root: %w", err)
+			return
+		}
 
-	globalConfig = config
-	return config, nil
+		// Always load default config first
+		defaultConfigPath := filepath.Join(root, "configs", "default.yaml")
+		defaultConfig, err := loadConfigFile(defaultConfigPath)
+		if err != nil {
+			loadErr = fmt.Errorf("failed to load default config: %w", err)
+			return
+		}
+
+		// Try to load environment-specific config and merge dynamically
+		envConfigPath := filepath.Join(root, "configs", fmt.Sprintf("%s.yaml", env))
+		var config *Config
+		if _, statErr := os.Stat(envConfigPath); statErr == nil {
+			envConfig, err := loadConfigFile(envConfigPath)
+			if err != nil {
+				loadErr = fmt.Errorf("failed to load %s config: %w", env, err)
+				return
+			}
+			config = mergeConfigDynamic(defaultConfig, envConfig)
+		} else {
+			config = defaultConfig
+		}
+
+		// Apply environment variable overrides
+		applyEnvOverrides(config)
+
+		globalConfig = config
+	})
+	return globalConfig, loadErr
+}
+
+// ResetCacheForTest clears the cached configuration so tests can reload with different env vars.
+func ResetCacheForTest() {
+	globalConfig = nil
+	loadErr = nil
+	loadOnce = sync.Once{}
 }
 
 // mergeConfigDynamic merges envConfig into baseConfig using reflection
@@ -258,6 +288,9 @@ func applyStorageOverrides(config *Config) {
 	if env := os.Getenv("CONFIG_FILE_PATH"); env != "" {
 		config.Storage.ConfigFile = env
 	}
+	if env := os.Getenv("DEVICE_KEYS_FILE_PATH"); env != "" {
+		config.Storage.DeviceKeysFile = env
+	}
 }
 
 func applyDevelopmentOverrides(config *Config) {
@@ -380,4 +413,20 @@ func (c *Config) GetLogLevel() string {
 
 func (c *Config) GetUiConfig() UIConfig {
 	return c.UI
+}
+
+func (c *Config) UseUserConfigDir() bool {
+	return c.Logging.UseUserConfigDir
+}
+
+func (c *Config) GetAppName() string {
+	return c.Application.Name
+}
+
+func (c *Config) GetDeviceKeysFilePath() string {
+	return c.Storage.DeviceKeysFile
+}
+
+func (c *Config) GetSecretKeyMetadataFilePath() string {
+	return c.Storage.SecretsKeyMetadataFile
 }

@@ -1,6 +1,6 @@
 # Default configuration - base values for all environments
 application:
-  name: "GoPasswordManager"
+  name: "GoPass"
   version: "1.6.0"
   environment: "dev"
 
@@ -14,15 +14,20 @@ logging:
   debug: true
   level: "info"
   format: "json"
+  useUserConfigDir: false
 
 security:
   encryption:
     key_size: 32
     algorithm: "AES-256-GCM"
+  keyring:
+    in_memory: false
 
 storage:
   secrets_file: "secrets.json"
   config_file: "app.config"
+  device_keys_file: "device_keys.json"
+  secrets_key_metadata_file: "secrets_key_metadata.json"
 
 development:
   hot_reload: false

@@ -44,7 +44,7 @@ func DeleteConfirmationModal(window fyne.Window, props DeleteConfirmationModalPr
 
 	paddedContent := container.NewPadded(content)
 
-	dialog.NewCustomConfirm(
+	dlg := dialog.NewCustomConfirm(
 		"",
 		"Delete",
 		"Cancel",
@@ -61,5 +61,8 @@ func DeleteConfirmationModal(window fyne.Window, props DeleteConfirmationModalPr
 			}
 		},
 		window,
-	).Show()
+	)
+	// No test registration here; tests will locate and interact with dialog buttons via traversal
+
+	dlg.Show()
 }

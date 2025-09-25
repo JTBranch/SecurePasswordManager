@@ -1,5 +1,7 @@
 # Ignore secrets file
 secrets.json
+secrets_key_metadata.json
+device_keys.json
 
 # Ignore environment files (except .env.example)
 .env
@@ -9,6 +11,9 @@ secrets.json
 # Ignore temporary build and CI output files
 tmp/
 bin/
+.gomodcache/
+.gopath/
+.tools/
 
 .DS_Store
 # Ignore backup files
@@ -48,3 +53,5 @@ test_macos_*.sh
 # Ignore local development files
 *.local
 local-*
+.vscode.gomodcache/cache/
+.vscode/

@@ -1,0 +1,38 @@
+syntax = "proto3";
+package transportpb;
+option go_package = "go-password-manager/internal/transport/proto;transportpb";
+
+// MessageType enumerates envelope variants.
+enum MessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  MESSAGE_TYPE_DATA = 1;  // Carries a SecretExportBundle
+  MESSAGE_TYPE_ACK = 2;   // Acknowledgement of receipt
+  MESSAGE_TYPE_ERROR = 3; // Error condition (optional future use)
+}
+
+message SecretExportPayload {
+  string id = 1;
+  string name = 2;
+  bytes encrypted_secrets = 3;
+  bytes secrets_nonce = 4;
+  bytes symmetric_key_box = 5;
+  int64 timestamp = 6;
+  int64 expires_at = 7;
+  // Sender metadata kept minimal for transport; expand if needed.
+  string sender_device_name = 8;
+  string sender_user_id = 9;
+  bytes sender_public_key = 10;
+  bytes sender_signing_public_key = 11;
+}
+
+message SecretExportBundle {
+  SecretExportPayload payload = 1;
+  bytes signature = 2;
+}
+
+message Envelope {
+  MessageType type = 1;
+  string sender_id = 2;
+  SecretExportBundle bundle = 3; // Present when type=DATA
+  string error_message = 4;      // Present when type=ERROR
+}

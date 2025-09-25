@@ -56,12 +56,12 @@ func LoadEnvironmentConfig() (*EnvironmentConfig, error) {
 }
 
 // GetEnvironmentConfig returns the global environment config (loads if not already loaded)
-func GetEnvironmentConfig() *EnvironmentConfig {
+func GetEnvironmentConfig() (*EnvironmentConfig, error) {
 	if globalEnvConfig == nil {
 		// Auto-load if not already loaded
-		LoadEnvironmentConfig()
+		return LoadEnvironmentConfig()
 	}
-	return globalEnvConfig
+	return globalEnvConfig, nil
 }
 
 // loadYAMLConfigFile loads a YAML configuration file

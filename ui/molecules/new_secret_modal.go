@@ -37,6 +37,8 @@ func NewSecretModal(win fyne.Window, secretsService *service.SecretsService, onS
 		gap,
 	)
 
+	// No test registration here; tests will locate entries via traversal
+
 	dialog.NewCustomConfirm(
 		"Create Secret",
 		"Create",
@@ -47,7 +49,12 @@ func NewSecretModal(win fyne.Window, secretsService *service.SecretsService, onS
 				name := nameEntry.Text
 				value := valueEntry.Text
 				if name != "" && value != "" {
-					_ = secretsService.SaveNewSecret(name, value)
+					err := secretsService.SaveNewSecret(name, value)
+					if err != nil {
+						dialog.ShowError(err, win)
+						println("Failed to create secret:", err)
+						return
+					}
 					onSuccess()
 				}
 			}

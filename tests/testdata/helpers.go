@@ -182,6 +182,15 @@ func (tm *TestDataManager) GetTestUser(environment string) (TestUser, error) {
 // Service integration helpers
 
 // CreateTestSecret creates a test secret in the service using test data
+func (tm *TestDataManager) CreateTestSecretWithValue(service *service.SecretsService, secretName string, secretValue string) error {
+	if !tm.initialized {
+		return fmt.Errorf(ErrNotInitialized)
+	}
+
+	return service.SaveNewSecret(secretName, secretValue)
+}
+
+// CreateTestSecret creates a test secret in the service using test data
 func (tm *TestDataManager) CreateTestSecret(service *service.SecretsService, secretName string) error {
 	if !tm.initialized {
 		return fmt.Errorf(ErrNotInitialized)

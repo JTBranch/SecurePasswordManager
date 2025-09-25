@@ -1,8 +1,14 @@
 package molecules
 
 import (
+	"os"
+	"path/filepath"
+
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -10,86 +16,170 @@ type AppHeaderProps struct {
 	OnSearch       func(string)
 	OnCreateSecret func()
 	OnMenuAction   func()
-	OnThemeChange  func(themeName string) // Add this for theme switching
+	OnExport       func()
+	OnThemeChange  func(themeName string)
+	OnThemeApplied func()
+	CurrentTheme   string
 }
 
-// headerLayout lays out the search box at 50% width and the buttons at the far right, with padding.
-type headerLayout struct{}
-
-const padding = 16      // px between search box and buttons
-const buttonSpacing = 8 // px between buttons
-
-func (headerLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-	if len(objects) != 3 {
-		return
-	}
-	menuBtnMin := objects[0].MinSize()
-	createBtnMin := objects[2].MinSize()
-
-	// Calculate available width for search box
-	searchWidth := size.Width - menuBtnMin.Width - createBtnMin.Width - 2*buttonSpacing
-
-	maxBtnHeight := fyne.Max(menuBtnMin.Height, createBtnMin.Height)
-	btnY := (size.Height - maxBtnHeight) / 2
-
-	// Position menu button (far left)
-	objects[0].Resize(menuBtnMin)
-	objects[0].Move(fyne.NewPos(0, float32(btnY)))
-
-	// Position search box (fills space between buttons)
-	objects[1].Resize(fyne.NewSize(searchWidth, size.Height))
-	objects[1].Move(fyne.NewPos(menuBtnMin.Width+buttonSpacing, 0))
-
-	// Position create button (far right)
-	objects[2].Resize(createBtnMin)
-	objects[2].Move(fyne.NewPos(size.Width-createBtnMin.Width, float32(btnY)))
-}
-
-func (headerLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
-	min := fyne.NewSize(0, 0)
-	if len(objects) == 3 {
-		searchMin := objects[0].MinSize()
-		menuBtnMin := objects[1].MinSize()
-		createBtnMin := objects[2].MinSize()
-
-		totalBtnWidth := menuBtnMin.Width + buttonSpacing + createBtnMin.Width
-		min.Width = searchMin.Width + padding + totalBtnWidth
-		min.Height = fyne.Max(searchMin.Height, fyne.Max(menuBtnMin.Height, createBtnMin.Height))
-	}
-	return min
-}
-
-// AppHeader renders the search box, menu button, and create button in a responsive header
+// AppHeader renders a compact, responsive header with a small app label, search,
+// theme selector and create button. Uses simple layout primitives for predictable behavior.
 func AppHeader(props AppHeaderProps, win fyne.Window) fyne.CanvasObject {
+	// App label / pseudo-logo with optional image
+	var logo fyne.CanvasObject
+	// load dark variant if available; for light/system themes use the standard main icon
+	var lightRes, darkRes fyne.Resource
+	var img *canvas.Image
+	// helper: try multiple locations so assets work from bundles or different CWDs
+	findAsset := func(name string) ([]byte, error) {
+		// try direct path relative to cwd
+		p := filepath.Join("ui", "assets", name)
+		if b, err := os.ReadFile(p); err == nil {
+			return b, nil
+		}
+		// try next to the executable (app bundle case)
+		if ex, err := os.Executable(); err == nil {
+			dir := filepath.Dir(ex)
+			// macOS app bundles put resources in Contents/Resources
+			tryPaths := []string{
+				filepath.Join(dir, name),
+				filepath.Join(dir, "Contents", "Resources", name),
+				filepath.Join(dir, "ui", "assets", name),
+			}
+			for _, tp := range tryPaths {
+				if b, err := os.ReadFile(tp); err == nil {
+					return b, nil
+				}
+			}
+		}
+		// finally, try name directly
+		return os.ReadFile(name)
+	}
+
+	// main icon used for light/system themes
+	if b, err := findAsset("main-icon.png"); err == nil {
+		lightRes = fyne.NewStaticResource("main-icon.png", b)
+	}
+	// dark-specific icon (optional)
+	if b, err := findAsset("main-icon-dark.png"); err == nil {
+		darkRes = fyne.NewStaticResource("main-icon-dark.png", b)
+	}
+	// fallback to main-icon.png if specific variants not present
+	if lightRes == nil {
+		if b, err := os.ReadFile("ui/assets/main-icon.png"); err == nil {
+			lightRes = fyne.NewStaticResource("main-icon.png", b)
+		}
+	}
+	// choose starting resource based on CurrentTheme: dark -> darkRes, otherwise main icon
+	var startRes fyne.Resource
+	if props.CurrentTheme == "dark" && darkRes != nil {
+		startRes = darkRes
+	} else if lightRes != nil {
+		startRes = lightRes
+	} else if darkRes != nil {
+		startRes = darkRes
+	}
+	if startRes != nil {
+		img = canvas.NewImageFromResource(startRes)
+		img.FillMode = canvas.ImageFillContain
+		img.SetMinSize(fyne.NewSize(36, 36))
+		// Put the image inside a fixed-size box so it won't collapse/stetch in different layouts
+		// use a transparent rectangle to force a fixed box size, then overlay the image
+		rect := canvas.NewRectangle(theme.BackgroundColor())
+		rect.SetMinSize(fyne.NewSize(48, 48))
+		box := container.NewMax(rect, img)
+		logo = container.NewCenter(box)
+	} else {
+		// fallback simple label centered
+		logo = container.NewCenter(widget.NewLabelWithStyle("GoPass", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
+	}
+
 	searchEntry := widget.NewEntry()
-	searchEntry.SetPlaceHolder("Search...")
+	searchEntry.SetPlaceHolder("Search secrets…")
 	searchEntry.OnChanged = props.OnSearch
 
-	menuBtn := widget.NewButton("☰", nil)
-	menuBtn.Importance = widget.MediumImportance
-
-	menuBtn.OnTapped = func() {
-		themesSubMenu := fyne.NewMenu("Themes",
-			fyne.NewMenuItem("Light Theme", func() {
-				if props.OnThemeChange != nil {
-					props.OnThemeChange("light")
+	// Settings menu: contains theme choices and export action
+	settingsBtn := widget.NewButtonWithIcon("Settings", theme.SettingsIcon(), func() { /* menu opens in OnTapped below */ })
+	settingsBtn.OnTapped = func() {
+		var pop *widget.PopUp
+		lightBtn := widget.NewButton("Theme: Light", func() {
+			if pop != nil {
+				pop.Hide()
+			}
+			if props.OnThemeChange != nil {
+				props.OnThemeChange("light")
+			}
+			// update header image to light variant if available
+			if img != nil {
+				if lightRes != nil {
+					img.Resource = lightRes
 				}
-			}),
-			fyne.NewMenuItem("Dark Theme", func() {
-				if props.OnThemeChange != nil {
-					props.OnThemeChange("dark")
+				img.Refresh()
+			}
+			if props.OnThemeApplied != nil {
+				props.OnThemeApplied()
+			}
+		})
+		darkBtn := widget.NewButton("Theme: Dark", func() {
+			if pop != nil {
+				pop.Hide()
+			}
+			if props.OnThemeChange != nil {
+				props.OnThemeChange("dark")
+			}
+			// update header image to dark variant if available
+			if img != nil {
+				if darkRes != nil {
+					img.Resource = darkRes
 				}
-			}),
-		)
-		themesItem := fyne.NewMenuItem("Themes", nil)
-		themesItem.ChildMenu = themesSubMenu
-
-		mainMenu := fyne.NewMenu("Menu", themesItem /*, other items here */)
-		pop := widget.NewPopUpMenu(mainMenu, win.Canvas())
-		pop.ShowAtPosition(menuBtn.Position().AddXY(0, menuBtn.Size().Height))
+				img.Refresh()
+			}
+			if props.OnThemeApplied != nil {
+				props.OnThemeApplied()
+			}
+		})
+		systemBtn := widget.NewButton("Theme: System", func() {
+			if pop != nil {
+				pop.Hide()
+			}
+			if props.OnThemeChange != nil {
+				props.OnThemeChange("system")
+			}
+			// for system, prefer light variant as a reasonable default
+			if img != nil {
+				if lightRes != nil {
+					img.Resource = lightRes
+				}
+				img.Refresh()
+			}
+			if props.OnThemeApplied != nil {
+				props.OnThemeApplied()
+			}
+		})
+		// menu layout: title + theme buttons in a row, then other settings
+		title := widget.NewLabelWithStyle("Settings", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		// theme options as a horizontal set for a compact look
+		themeRow := container.NewHBox(lightBtn, darkBtn, systemBtn)
+		close := widget.NewButton("Close", func() { /* attached below */ })
+		menu := container.NewVBox(title, themeRow, widget.NewSeparator(), close)
+		pop = widget.NewModalPopUp(menu, win.Canvas())
+		close.OnTapped = func() { pop.Hide() }
+		pop.Show()
 	}
 
-	createBtn := widget.NewButton("Create Secret", props.OnCreateSecret)
+	exportBtn := widget.NewButtonWithIcon("Export", theme.DocumentIcon(), func() {
+		if props.OnExport != nil {
+			props.OnExport()
+		}
+	})
+	createBtn := widget.NewButton("Create", props.OnCreateSecret)
 
-	return container.New(&headerLayout{}, menuBtn, searchEntry, createBtn)
+	left := container.NewHBox(logo)
+	// place searchEntry directly into the border layout center so it stretches
+	middle := searchEntry
+	right := container.NewHBox(settingsBtn, exportBtn, createBtn)
+
+	// Use a responsive BorderLayout to keep search prominent.
+	row := container.New(layout.NewBorderLayout(nil, nil, left, right), left, middle, right)
+	return row
 }

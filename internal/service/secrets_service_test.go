@@ -2,16 +2,17 @@ package service_test
 
 import (
 	"encoding/json"
-	"go-password-manager/internal/crypto"
 	"go-password-manager/internal/domain"
 	"go-password-manager/internal/service"
 	"go-password-manager/internal/storage"
-	"go-password-manager/tests/helpers"
 	"go-password-manager/tests/testdata"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -24,28 +25,26 @@ const (
 	secretValueShouldMatch = "Secret value should match"
 )
 
-// Mock CryptoService for testing
-type mockCryptoService struct {
+type MockCryptoService struct {
+	mock.Mock
 	key []byte
 }
 
-func newMockCryptoService(key []byte) service.CryptoService {
-	return &mockCryptoService{key: key}
+func newMockCryptoService(key []byte) *MockCryptoService {
+	m := &MockCryptoService{key: key}
+	return m
 }
 
-func (m *mockCryptoService) Encrypt(data, key []byte) ([]byte, error) {
-	s, err := crypto.Encrypt(data, key)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(s), nil
+// For versioning tests, override methods to return input data directly
+func (m *MockCryptoService) EncryptSymmetric(data, key []byte, aad []byte) ([]byte, []byte, error) {
+	return data, []byte("nonce"), nil
 }
 
-func (m *mockCryptoService) Decrypt(data, key []byte) ([]byte, error) {
-	return crypto.Decrypt(string(data), key)
+func (m *MockCryptoService) DecryptSymmetric(data, nonce, key []byte, aad []byte) ([]byte, error) {
+	return data, nil
 }
 
-func (m *mockCryptoService) GetKey() []byte {
+func (m *MockCryptoService) GetKey() []byte {
 	return m.key
 }
 
@@ -63,12 +62,10 @@ func setupTestService(t *testing.T) *service.SecretsService {
 	}
 
 	data, err := json.MarshalIndent(emptySecretsFile, "", "  ")
-	if err != nil {
-		t.Fatalf("Failed to marshal empty secrets file: %v", err)
-	}
-	if err := os.WriteFile(testFile, data, 0644); err != nil {
-		t.Fatalf("Failed to write empty secrets file: %v", err)
-	}
+	require := require.New(t)
+	require.NoError(err, "Failed to marshal empty secrets file")
+	err = os.WriteFile(testFile, data, 0644)
+	require.NoError(err, "Failed to write empty secrets file")
 
 	cryptoService := newMockCryptoService([]byte(testdata.TestEncryptionKey))
 	storageService := storage.NewFileStorage(testFile, "1.0.0", testdata.TestUsers.UnitTestUser.Name)
@@ -78,132 +75,140 @@ func setupTestService(t *testing.T) *service.SecretsService {
 	return svc
 }
 
-func TestSecretsService(t *testing.T) {
-	helpers.WithUnitTestCase(t, "CreateSecret", func(tc *helpers.UnitTestCase) {
-		svc := setupTestService(t)
+// Removed top-level TestSecretsService wrapper; each test is now a top-level function.
+func TestCreateSecret(t *testing.T) {
+	require := require.New(t)
+	svc := setupTestService(t)
 
-		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
-		tc.Require.NoError(err, errCreateSecret)
+	err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
+	require.NoError(err, errCreateSecret)
 
-		fileData, err := svc.LoadAllSecrets()
-		tc.Require.NoError(err, errLoadSecrets)
+	fileData, err := svc.LoadAllSecrets()
+	require.NoError(err, errLoadSecrets)
 
-		tc.Assert.Len(fileData.Secrets, 1, "Expected 1 secret")
-		secret := fileData.Secrets[0]
-		tc.Assert.Equal(testdata.TestSecrets.Simple.Name, secret.SecretName, "Secret name should match")
-		tc.Assert.Equal(1, secret.CurrentVersion, "Current version should be 1")
-		tc.Assert.Len(secret.Versions, 1, "Expected 1 version")
-	})
+	require.Equal(1, len(fileData.Secrets), "Expected 1 secret")
+	secret := fileData.Secrets[0]
+	require.Equal(testdata.TestSecrets.Simple.Name, secret.SecretName, "Secret name should match")
+	require.Equal(1, secret.CurrentVersion, "Current version should be 1")
+	require.Equal(1, len(secret.Versions), "Expected 1 version")
+}
 
-	helpers.WithUnitTestCase(t, "EditSecret", func(tc *helpers.UnitTestCase) {
-		svc := setupTestService(t)
+func TestEditSecret(t *testing.T) {
+	require := require.New(t)
+	svc := setupTestService(t)
 
-		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, "initial-value")
-		tc.Require.NoError(err, errCreateSecret)
+	err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, "initial-value")
+	require.NoError(err, errCreateSecret)
 
-		err = svc.UpdateSecret(testdata.TestSecrets.Simple.Name, "updated-value")
-		tc.Require.NoError(err, "Expected no error editing secret")
+	err = svc.UpdateSecret(testdata.TestSecrets.Simple.Name, "updated-value")
+	require.NoError(err, "Expected no error editing secret")
 
-		fileData, err := svc.LoadAllSecrets()
-		tc.Require.NoError(err, errLoadSecrets)
+	fileData, err := svc.LoadAllSecrets()
+	require.NoError(err, errLoadSecrets)
 
-		tc.Assert.Len(fileData.Secrets, 1, "Should still have 1 secret")
-		secret := fileData.Secrets[0]
-		tc.Assert.Equal(2, secret.CurrentVersion, "Version should be incremented")
-		tc.Assert.Len(secret.Versions, 2, "Should have 2 versions")
-	})
+	require.Equal(1, len(fileData.Secrets), "Should still have 1 secret")
+	secret := fileData.Secrets[0]
+	require.Equal(2, secret.CurrentVersion, "Version should be incremented")
+	require.Equal(2, len(secret.Versions), "Should have 2 versions")
+}
 
-	helpers.WithUnitTestCase(t, "DeleteSecret", func(tc *helpers.UnitTestCase) {
-		svc := setupTestService(t)
+func TestDeleteSecret(t *testing.T) {
+	require := require.New(t)
+	svc := setupTestService(t)
 
-		err := svc.SaveNewSecret(testdata.TestSecrets.Temporary.Name, testdata.TestSecrets.Temporary.Value)
-		tc.Require.NoError(err, errCreateSecret)
+	err := svc.SaveNewSecret(testdata.TestSecrets.Temporary.Name, testdata.TestSecrets.Temporary.Value)
+	require.NoError(err, errCreateSecret)
 
-		err = svc.DeleteSecret(testdata.TestSecrets.Temporary.Name)
-		tc.Require.NoError(err, "Expected no error deleting secret")
+	err = svc.DeleteSecret(testdata.TestSecrets.Temporary.Name)
+	require.NoError(err, "Expected no error deleting secret")
 
-		fileData, err := svc.LoadAllSecrets()
-		tc.Require.NoError(err, errLoadSecrets)
-		tc.Assert.Len(fileData.Secrets, 0, "Expected 0 secrets after deletion")
-	})
+	fileData, err := svc.LoadAllSecrets()
+	require.NoError(err, errLoadSecrets)
+	require.Equal(0, len(fileData.Secrets), "Expected 0 secrets after deletion")
+}
 
-	helpers.WithUnitTestCase(t, "GetSecret", func(tc *helpers.UnitTestCase) {
-		svc := setupTestService(t)
+func TestGetSecret(t *testing.T) {
+	require := require.New(t)
+	svc := setupTestService(t)
 
-		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
-		tc.Require.NoError(err, errCreateSecret)
+	err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
+	require.NoError(err, errCreateSecret)
 
-		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
-		tc.Require.NoError(err, "Expected no error getting secret")
-		tc.Assert.NotNil(secret, "Expected non-nil secret")
-		tc.Assert.Equal(testdata.TestSecrets.Simple.Name, secret.SecretName, "Secret name should match")
-	})
+	secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
+	require.NoError(err, "Expected no error getting secret")
+	require.NotNil(secret, "Expected non-nil secret")
+	require.Equal(testdata.TestSecrets.Simple.Name, secret.SecretName, "Secret name should match")
+}
 
-	helpers.WithUnitTestCase(t, "GetSecretNonExistent", func(tc *helpers.UnitTestCase) {
-		svc := setupTestService(t)
+func TestGetSecretNonExistent(t *testing.T) {
+	require := require.New(t)
+	svc := setupTestService(t)
 
-		_, err := svc.GetSecret(nonExistentName)
-		tc.Assert.Error(err, "Expected error getting non-existent secret")
-	})
+	_, err := svc.GetSecret(nonExistentName)
+	require.Error(err, "Expected error getting non-existent secret")
+}
 
-	helpers.WithUnitTestCase(t, "GetSecretValue", func(tc *helpers.UnitTestCase) {
-		svc := setupTestService(t)
+func TestGetSecretValue(t *testing.T) {
+	require := require.New(t)
+	svc := setupTestService(t)
 
-		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
-		tc.Require.NoError(err, errCreateSecret)
-		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
-		tc.Require.NoError(err, errGettingSecretFailed)
-		value, err := svc.GetSecretValue(secret)
-		tc.Require.NoError(err, errGetSecretValue)
-		tc.Assert.Equal(testdata.TestSecrets.Simple.Value, value, secretValueShouldMatch)
-		tc.Assert.Equal(testdata.TestSecrets.Simple.Value, value, secretValueShouldMatch)
-		tc.Assert.Equal(testdata.TestSecrets.Simple.Value, value, secretValueShouldMatch)
-	})
+	err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
+	require.NoError(err, errCreateSecret)
+	secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
+	require.NoError(err, errGettingSecretFailed)
+	value, err := svc.GetSecretValue(secret)
+	require.NoError(err, errGetSecretValue)
+	require.Equal(testdata.TestSecrets.Simple.Value, value, secretValueShouldMatch)
+}
 
-	helpers.WithUnitTestCase(t, "GetSecretValueByVersion", func(tc *helpers.UnitTestCase) {
-		svc := setupTestService(t)
+func TestGetSecretValueByVersion(t *testing.T) {
+	require := require.New(t)
+	tempDir := t.TempDir()
 
-		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, "value1")
-		tc.Require.NoError(err, errCreateSecret)
-		err = svc.UpdateSecret(testdata.TestSecrets.Simple.Name, "value2")
-		tc.Require.NoError(err, "updating secret failed")
-		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
-		tc.Require.NoError(err, errGettingSecretFailed)
-		value, err := svc.GetSecretValueByVersion(secret, 1)
-		tc.Require.NoError(err, errGetSecretValue)
-		tc.Assert.Equal("value1", value, secretValueShouldMatch)
+	cryptoService := newMockCryptoService([]byte(testdata.TestEncryptionKey))
+	storageService := storage.NewFileStorage(filepath.Join(tempDir, "secrets.json"), "1.0.0", testdata.TestUsers.UnitTestUser.Name)
 
-		value, err = svc.GetSecretValueByVersion(secret, 2)
-		tc.Require.NoError(err, errGetSecretValue)
-		tc.Assert.Equal("value2", value, secretValueShouldMatch)
-		tc.Assert.Equal("value2", value, secretValueShouldMatch)
-		tc.Assert.Equal("value2", value, secretValueShouldMatch)
-	})
+	svc := service.NewSecretsService(cryptoService, storageService)
 
-	helpers.WithUnitTestCase(t, "GetSecretValueInvalidVersion", func(tc *helpers.UnitTestCase) {
-		svc := setupTestService(t)
+	err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, "value1")
+	require.NoError(err, errCreateSecret)
+	err = svc.UpdateSecret(testdata.TestSecrets.Simple.Name, "value2")
+	require.NoError(err, "updating secret failed")
+	secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
+	require.NoError(err, errGettingSecretFailed)
+	value, err := svc.GetSecretValueByVersion(secret, 1)
+	require.NoError(err, errGetSecretValue)
+	require.Equal("value1", value, secretValueShouldMatch)
 
-		err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
-		tc.Require.NoError(err, errCreateSecret)
-		secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
-		tc.Require.NoError(err, errGettingSecretFailed)
+	value, err = svc.GetSecretValueByVersion(secret, 2)
+	require.NoError(err, errGetSecretValue)
+	require.Equal("value2", value, secretValueShouldMatch)
+}
 
-		_, err = svc.GetSecretValueByVersion(secret, 99)
-		tc.Assert.Error(err, "Expected error for invalid version")
-		tc.Assert.Error(err, "Expected error for invalid version")
-	})
+func TestGetSecretValueInvalidVersion(t *testing.T) {
+	require := require.New(t)
+	svc := setupTestService(t)
 
-	helpers.WithUnitTestCase(t, "LoadAllSecretsFileNotFound", func(tc *helpers.UnitTestCase) {
-		tempDir := t.TempDir()
+	err := svc.SaveNewSecret(testdata.TestSecrets.Simple.Name, testdata.TestSecrets.Simple.Value)
+	require.NoError(err, errCreateSecret)
+	secret, err := svc.GetSecret(testdata.TestSecrets.Simple.Name)
+	require.NoError(err, errGettingSecretFailed)
 
-		cryptoService := newMockCryptoService([]byte(testdata.TestEncryptionKey))
-		storageService := storage.NewFileStorage(filepath.Join(tempDir, "non_existent_file.json"), "1.0.0", testdata.TestUsers.UnitTestUser.Name)
+	_, err = svc.GetSecretValueByVersion(secret, 99)
+	require.Error(err, "Expected error for invalid version")
+}
 
-		svc := service.NewSecretsService(cryptoService, storageService)
+func TestLoadAllSecretsFileNotFound(t *testing.T) {
+	require := require.New(t)
+	tempDir := t.TempDir()
 
-		fileData, err := svc.LoadAllSecrets()
-		tc.Require.NoError(err, "Expected no error when file does not exist")
-		tc.Assert.NotNil(fileData, "Expected non-nil file data")
-		tc.Assert.Empty(fileData.Secrets, "Expected no secrets in new file")
-	})
+	cryptoService := newMockCryptoService([]byte(testdata.TestEncryptionKey))
+	storageService := storage.NewFileStorage(filepath.Join(tempDir, "non_existent_file.json"), "1.0.0", testdata.TestUsers.UnitTestUser.Name)
+
+	svc := service.NewSecretsService(cryptoService, storageService)
+
+	fileData, err := svc.LoadAllSecrets()
+	require.NoError(err, "Expected no error when file does not exist")
+	require.NotNil(fileData, "Expected non-nil file data")
+	require.Equal(0, len(fileData.Secrets), "Expected no secrets in new file")
 }

@@ -17,6 +17,7 @@ const (
 type SecretVersion struct {
 	SecretValueEnc string `json:"secretValueEnc"`
 	Version        int    `json:"version"`
+	Nonce          []byte `json:"nonce"`
 	UpdatedAt      string `json:"updatedAt"`
 	UpdatedBy      string `json:"updatedBy,omitempty"`
 }
