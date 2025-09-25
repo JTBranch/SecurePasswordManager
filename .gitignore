@@ -11,6 +11,9 @@ device_keys.json
 # Ignore temporary build and CI output files
 tmp/
 bin/
+.gomodcache/
+.gopath/
+.tools/
 
 .DS_Store
 # Ignore backup files
@@ -50,4 +53,4 @@ test_macos_*.sh
 # Ignore local development files
 *.local
 local-*
-.vscode
+.vscode.gomodcache/cache/
