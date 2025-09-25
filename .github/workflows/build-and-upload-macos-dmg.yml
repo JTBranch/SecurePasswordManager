@@ -60,8 +60,12 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
           MACOS_SIGNING_P12_BASE64: ${{ secrets.MACOS_SIGNING_P12_BASE64 }}
+          MACOS_SIGNING_P12_PASSWORD: ${{ secrets.MACOS_SIGNING_P12_PASSWORD }}
           APPLE_NOTARIZE_USERNAME: ${{ secrets.APPLE_NOTARIZE_USERNAME }}
           APPLE_NOTARIZE_PASSWORD: ${{ secrets.APPLE_NOTARIZE_PASSWORD }}
+          APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: |
           if [[ "${{ steps.arch.outputs.runner_arch }}" == "arm64" ]]; then
             ARCH=macos-arm64
@@ -89,21 +93,31 @@ jobs:
           ./scripts/create-macos-dmg.sh "$ARCH" "$VERSION" assemble
 
           ASSEMBLED_APP=dist/macos-dmg/PasswordManager.app
+          # Optionally codesign if P12 + identity provided. We use a temporary keychain and avoid printing secrets.
+          if [[ -n "$MACOS_SIGNING_P12_BASE64" && -n "$MACOS_SIGNING_IDENTITY" ]]; then
+            echo "Signing credentials present — preparing temporary keychain and importing certificate"
+            # create temporary keychain with a random password stored in a file descriptor to avoid exposing it
+            KC_PASS=$(openssl rand -base64 16)
+            security create-keychain -p "$KC_PASS" build.keychain
+            security list-keychains -s build.keychain
+            security default-keychain -s build.keychain
+            security unlock-keychain -p "$KC_PASS" build.keychain
 
-          # Optionally codesign if credentials provided
-          if [[ -n "$MACOS_SIGNING_IDENTITY" && -n "$APPLE_NOTARIZE_USERNAME" ]]; then
-            echo "Signing app with identity from secrets..."
-            security create-keychain -p actions build.keychain || true
-            # Import signing key (expecting a base64-encoded p12 in MACOS_SIGNING_P12_BASE64)
+            # Import the base64 P12 into a temp file (do NOT echo the secret)
             echo "$MACOS_SIGNING_P12_BASE64" | base64 --decode > /tmp/signing.p12
-            # Note: securely importing cert requires further setup; placeholder shown here
-            echo "(Signing steps placeholder - configure keychain and import signing certificate)"
-            # Example (commented):
-            # security import /tmp/signing.p12 -k ~/Library/Keychains/login.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
-            # codesign -s "$MACOS_SIGNING_IDENTITY" --deep --force "$ASSEMBLED_APP"
-            # After creating a signed DMG, submit for notarization with xcrun altool or notarytool
+            # Import P12; allow codesign access
+            security import /tmp/signing.p12 -k build.keychain -P "$MACOS_SIGNING_P12_PASSWORD" -T /usr/bin/codesign || true
+            # Set key partition list so codesign can use keys non-interactively
+            security set-key-partition-list -S apple-tool:,apple: -s -k "$KC_PASS" build.keychain || true
+
+            echo "Running codesign on assembled app (this may take a moment)..."
+            # Sign the main executable and the bundle (use --deep if necessary)
+            codesign --timestamp --options runtime --force --verify --sign "$MACOS_SIGNING_IDENTITY" "$ASSEMBLED_APP/Contents/MacOS/password-manager" || true
+            codesign --timestamp --options runtime --force --verify --sign "$MACOS_SIGNING_IDENTITY" "$ASSEMBLED_APP" || true
+
+            echo "Codesign complete."
           else
-            echo "No signing/notarization secrets provided; skipping codesign/notarize."
+            echo "Signing credentials not present; skipping codesign." 
           fi
 
           # Create the DMG from assembled (signed or unsigned) app
@@ -130,6 +144,19 @@ jobs:
           echo "dmg_path=$DMG_PATH" >> $GITHUB_OUTPUT
           echo "dmg_name=$DMG_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # If notarization credentials (API key) exist, attempt notarization (notarytool)
+          # We do this here so the DMG uploaded is notarized/stapled when possible.
+          if [[ -n "$APPLE_API_KEY_P8_BASE64" && -n "$APPLE_API_KEY_ID" && -n "$APPLE_API_ISSUER_ID" ]]; then
+            echo "Notarization credentials present — attempting notarytool submit (wait)..."
+            echo "$APPLE_API_KEY_P8_BASE64" | base64 --decode > /tmp/AuthKey.p8
+            # Submit and wait for notarization. Do not echo the request UUID.
+            xcrun notarytool submit "$DMG_PATH" --key /tmp/AuthKey.p8 --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER_ID" --wait
+            xcrun stapler staple "$DMG_PATH"
+            echo "Notarization attempted; stapled ticket (if successful)."
+          else
+            echo "Notarization credentials not present; skipping notarytool step."
+          fi
 
       - name: Resolve release upload URL (for manual runs)
         id: resolve_upload
@@ -243,6 +270,15 @@ jobs:
           asset_path: ${{ steps.create_dmg.outputs.dmg_path }}
           asset_name: ${{ steps.create_dmg.outputs.dmg_name }}
           asset_content_type: application/x-apple-diskimage
+
+      - name: Cleanup temporary keychain and temp files
+        if: always()
+        run: |
+          echo "Cleaning up temporary keychain and temp files..."
+          # remove temporary keychain created during signing (if present)
+          security delete-keychain build.keychain || true
+          # remove any temporary uploaded key files
+          rm -f /tmp/signing.p12 /tmp/AuthKey.p8 || true
 
       - name: Note about signing
         run: |
