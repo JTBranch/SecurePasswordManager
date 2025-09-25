@@ -13,11 +13,33 @@ func TestLoadDefaultConfig(t *testing.T) {
 	os.Setenv("GO_PASSWORD_MANAGER_ENV", "test-default")
 	defer os.Unsetenv("GO_PASSWORD_MANAGER_ENV")
 
+	// Clear any environment variables that may be set by CI (e.g. APP_NAME)
+	// so this test is deterministic regardless of pipeline env.
+	keys := []string{"APP_NAME", "DEFAULT_WINDOW_WIDTH", "DEFAULT_WINDOW_HEIGHT", "DEBUG_LOGGING", "APP_VERSION", "ENCRYPTION_KEY_SIZE"}
+	originals := make(map[string]string)
+	for _, k := range keys {
+		if v, ok := os.LookupEnv(k); ok {
+			originals[k] = v
+			os.Unsetenv(k)
+		} else {
+			// ensure unset
+			os.Unsetenv(k)
+		}
+	}
+	defer func() {
+		for k, v := range originals {
+			os.Setenv(k, v)
+		}
+	}()
+
+	// Clear cached config to force a fresh load
+	ResetCacheForTest()
+
 	config, err := Load()
 	require.NoError(t, err, "Failed to load config")
 
 	// Test default values
-	assert.Equal(t, "GoPass", config.Application.Name, "Expected app name 'GoPasswordManager'")
+	assert.Equal(t, "GoPass", config.Application.Name, "Expected app name 'GoPass'")
 	assert.Equal(t, 1600, config.UI.Window.Width, "Expected window width 1600")
 	assert.Equal(t, 900, config.UI.Window.Height, "Expected window height 900")
 	assert.Equal(t, 32, config.Security.Encryption.KeySize, "Expected encryption key size 32")

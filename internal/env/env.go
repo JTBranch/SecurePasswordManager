@@ -63,7 +63,7 @@ func Load() (*Config, error) {
 	config := &Config{
 		Environment:         getEnv("GO_PASSWORD_MANAGER_ENV", "dev"),
 		AppVersion:          getEnv("APP_VERSION", "1.0.0"),
-		AppName:             getEnv("APP_NAME", "GoPasswordManager"),
+		AppName:             getEnv("APP_NAME", "GoPass"),
 		DefaultWindowWidth:  getEnvInt("DEFAULT_WINDOW_WIDTH", 1600),
 		DefaultWindowHeight: getEnvInt("DEFAULT_WINDOW_HEIGHT", 900),
 		DebugLogging:        getEnvBool("DEBUG_LOGGING", isDevMode()),
