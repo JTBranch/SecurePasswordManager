@@ -195,6 +195,45 @@ jobs:
           fi
           echo "upload_url=$UPLOAD_URL" >> $GITHUB_OUTPUT
 
+      - name: Verify DMG (diagnostic)
+        if: always()
+        run: |
+          DMG="${{ steps.create_dmg.outputs.dmg_path }}"
+          echo "Verifying DMG: $DMG"
+          if [[ ! -f "$DMG" ]]; then
+            echo "DMG not found at $DMG" >&2
+            exit 1
+          fi
+          echo "Running hdiutil verify..."
+          hdiutil verify "$DMG" || echo "hdiutil verify returned non-zero"
+
+          MNT=$(mktemp -d)
+          echo "Attempting to attach DMG to $MNT (noverify,nobrowse)"
+          if ! hdiutil attach "$DMG" -mountpoint "$MNT" -noverify -nobrowse; then
+            echo "Failed to attach DMG (it may be corrupted)"
+            hdiutil imageinfo "$DMG" || true
+            exit 1
+          fi
+
+          echo "DMG mounted, listing contents:"
+          ls -la "$MNT" || true
+
+          APP_PATH=$(find "$MNT" -maxdepth 2 -name '*.app' -print -quit || true)
+          if [[ -z "$APP_PATH" ]]; then
+            echo "No .app found inside DMG" >&2
+            ls -la "$MNT" || true
+            hdiutil detach "$MNT" || true
+            exit 1
+          fi
+
+          echo "Found app at: $APP_PATH"
+          echo "Checking codesign:" && codesign -vvv "$APP_PATH" 2>&1 || true
+          echo "Checking Gatekeeper (spctl):" && spctl -a -t exec -vv "$APP_PATH" 2>&1 || true
+          echo "Listing extended attributes for app:" && xattr -lr "$APP_PATH" || true
+
+          echo "Detaching DMG..."
+          hdiutil detach "$MNT" || true
+
       - name: Upload DMG file
         uses: actions/upload-release-asset@v1
         env:
