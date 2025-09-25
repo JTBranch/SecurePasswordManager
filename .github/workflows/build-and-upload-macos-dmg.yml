@@ -4,7 +4,11 @@ on:
   release:
     types: [published]
   # Allow manual runs from the Actions UI (useful to re-run packaging for an existing release)
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to attach the DMG to (optional). If empty the job will prefer the release event tag or default to development.'
+        required: false
 
 jobs:
   build-dmg:
@@ -50,8 +54,10 @@ jobs:
           ./scripts/build-macos.sh "$VERSION" "$COMMIT" "$DATE"
 
       - name: Create DMG
+        id: create_dmg
         env:
-          VERSION: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ github.event.inputs.release_tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
           MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
           MACOS_SIGNING_P12_BASE64: ${{ secrets.MACOS_SIGNING_P12_BASE64 }}
           APPLE_NOTARIZE_USERNAME: ${{ secrets.APPLE_NOTARIZE_USERNAME }}
@@ -62,6 +68,17 @@ jobs:
           else
             ARCH=macos-amd64
           fi
+          # Compute VERSION: precedence is workflow input -> release event tag -> default 'development'
+          if [[ -n "$INPUT_TAG" && "$INPUT_TAG" != 'null' ]]; then
+            VERSION="$INPUT_TAG"
+          elif [[ -n "$RELEASE_TAG" && "$RELEASE_TAG" != 'null' ]]; then
+            VERSION="$RELEASE_TAG"
+          else
+            VERSION="development"
+          fi
+
+          echo "Using VERSION=$VERSION and ARCH=$ARCH"
+
           # First assemble the app so we can codesign / notarize if creds are available
           ./scripts/create-macos-dmg.sh "$ARCH" "$VERSION" assemble
 
@@ -97,12 +114,41 @@ jobs:
           fi
           echo "DMG present: $(stat -f '%z bytes' "$DMG_PATH" || stat -c '%s bytes' "$DMG_PATH" || true)"
 
+          # Export the computed version for downstream steps
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Resolve release upload URL (for manual runs)
+        id: resolve_upload
+        run: |
+          # If the release event provided an upload_url, use it
+          if [[ -n "${{ github.event.release.upload_url }}" && "${{ github.event.release.upload_url }}" != 'null' ]]; then
+            echo "upload_url=${{ github.event.release.upload_url }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Otherwise attempt to look up the release by tag (requires GITHUB_TOKEN)
+          TAG="${{ steps.create_dmg.outputs.version }}"
+          if [[ -z "$TAG" || "$TAG" == 'null' ]]; then
+            TAG=development
+          fi
+          echo "Looking up release for tag: $TAG"
+          API_URL="https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG"
+          echo "Querying $API_URL"
+          RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "$API_URL")
+          UPLOAD_URL=$(echo "$RESPONSE" | jq -r .upload_url)
+          if [[ "$UPLOAD_URL" == "null" || -z "$UPLOAD_URL" ]]; then
+            echo "ERROR: could not determine release upload_url for tag $TAG" >&2
+            echo "Response: $RESPONSE" >&2
+            exit 2
+          fi
+          echo "upload_url=$UPLOAD_URL" >> $GITHUB_OUTPUT
+
       - name: Upload DMG file
         uses: actions/upload-release-asset@v1
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: dist/macos-dmg/GoPasswordManager-${{ github.event.release.tag_name }}-${{ steps.arch.outputs.arch_name }}.dmg
-          asset_name: GoPasswordManager-${{ github.event.release.tag_name }}-${{ steps.arch.outputs.arch_name }}.dmg
+          upload_url: ${{ steps.resolve_upload.outputs.upload_url }}
+          asset_path: dist/macos-dmg/GoPasswordManager-${{ steps.create_dmg.outputs.version }}-${{ steps.arch.outputs.arch_name }}.dmg
+          asset_name: GoPasswordManager-${{ steps.create_dmg.outputs.version }}-${{ steps.arch.outputs.arch_name }}.dmg
           asset_content_type: application/x-apple-diskimage
 
       - name: Note about signing
