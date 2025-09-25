@@ -104,6 +104,30 @@ fi
 echo "Preparing DMG contents (app + Applications symlink)..."
 DMG_STAGING="$STAGING_DIR/dmg-root"
 mkdir -p "$DMG_STAGING"
+# Sanitize the assembled app: remove any leftover code-signature artifacts and extended attributes
+if [[ -d "$ASSEMBLED_APP" ]]; then
+  echo "Sanitizing assembled app before packaging..."
+  # remove any CodeSignature directories
+  find "$ASSEMBLED_APP" -name _CodeSignature -type d -prune -exec rm -rf {} + || true
+  # remove any CodeResources files
+  find "$ASSEMBLED_APP" -name CodeResources -type f -exec rm -f {} + || true
+  # clear extended attributes (quarantine etc)
+  if command -v xattr >/dev/null 2>&1; then
+    xattr -cr "$ASSEMBLED_APP" || true
+  fi
+  # remove com.apple.quarantine if present
+  if command -v xattr >/dev/null 2>&1; then
+    xattr -d com.apple.quarantine "$ASSEMBLED_APP" >/dev/null 2>&1 || true
+  fi
+  # attempt to remove any embedded code signatures from the bundle and binary
+  if command -v codesign >/dev/null 2>&1; then
+    echo "Attempting to remove embedded code signatures (if any)..."
+    # remove signature on the bundle (may fail harmlessly) and on the main executable
+    codesign --remove-signature "$ASSEMBLED_APP" >/dev/null 2>&1 || true
+    codesign --remove-signature "$ASSEMBLED_APP/Contents/MacOS/$APP_EXEC_NAME" >/dev/null 2>&1 || true
+  fi
+fi
+
 cp -R "$ASSEMBLED_APP" "$DMG_STAGING/"
 
 # create Applications symlink inside DMG for user convenience
