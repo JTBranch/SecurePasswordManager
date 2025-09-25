@@ -8,6 +8,7 @@ import (
 	"go-password-manager/internal/sharing"
 	"go-password-manager/internal/transport"
 	"go-password-manager/ui/molecules"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -26,12 +27,27 @@ type ActionCallbacks struct {
 	OnDiscover func([]transport.DeviceDescriptor, error)
 }
 
-func ActionBar(props Props, vm *ViewModel, devicesList *widget.List) *fyne.Container {
+func ActionBar(props Props, vm *ViewModel, devicesList *widget.List) (*fyne.Container, *widget.Entry) {
 	addrEntry := widget.NewEntry()
 	addrEntry.SetPlaceHolder("host:port (e.g. 192.168.1.42:8080)")
+	// transportSelect chooses which transport to use for discover/send.
+	// Hide Bluetooth option on Windows since we don't support a Windows adapter.
+	options := []string{"lan", "bluetooth"}
+	if runtime.GOOS == "windows" {
+		options = []string{"lan"}
+	}
+	// We don't need to react immediately when user toggles it; selection is read by actions.
+	transportSelect := widget.NewSelect(options, func(_ string) {
+		// intentionally no-op; selection read on action invocation
+	})
+	transportSelect.SetSelected("lan")
 	spinner := widget.NewProgressBarInfinite()
 	spinner.Hide()
 	sendBtn := widget.NewButton("Send", func() {
+		transportID := transportSelect.Selected
+		if transportID == "" {
+			transportID = "lan"
+		}
 		addr := addrEntry.Text
 		if addr == "" { // try selected device
 			for i, sel := range vm.SelectedDevice {
@@ -44,10 +60,18 @@ func ActionBar(props Props, vm *ViewModel, devicesList *widget.List) *fyne.Conta
 		if !validateInputs(props, addr) {
 			return
 		}
-		runSendAsync(props, vm, addr, collectSecrets(vm))
+		runSendAsync(props, vm, transportID, addr, collectSecrets(vm))
 	})
 
-	discoverBtn := widget.NewButton("Discover", func() { spinner.Show(); runDiscover(props, vm, devicesList, spinner) })
+	// Inline spinner next to Discover button for compactness
+	discoverBtn := widget.NewButton("Discover", func() {
+		spinner.Show()
+		transportID := transportSelect.Selected
+		if transportID == "" {
+			transportID = "lan"
+		}
+		runDiscover(props, vm, devicesList, spinner, transportID)
+	})
 	fallbackChk := widget.NewCheck("Show fallback", func(b bool) {
 		vm.ShowFallback = b
 		// Reapply filter to last discovery without triggering new discovery
@@ -62,11 +86,14 @@ func ActionBar(props Props, vm *ViewModel, devicesList *widget.List) *fyne.Conta
 			props.OnClose()
 		}
 	})
-	help := widget.NewLabel("Discover scans LAN. Or manually enter host:port (e.g. 192.168.1.42:8080)")
+	help := widget.NewLabel("Discover scans LAN or Bluetooth. Or manually enter host:port (e.g. 192.168.1.42:8080)")
 	help.Wrapping = fyne.TextWrapWord
 	buttons := container.NewHBox(sendBtn, closeBtn)
-	row := container.NewBorder(nil, nil, container.NewVBox(discoverBtn, fallbackChk), buttons, addrEntry)
-	return container.NewVBox(row, help, spinner)
+	// place transport selector above address entry; show discover + spinner inline
+	discoverRow := container.NewHBox(discoverBtn, spinner)
+	leftControls := container.NewVBox(discoverRow, transportSelect, fallbackChk)
+	row := container.NewBorder(nil, nil, leftControls, buttons, addrEntry)
+	return container.NewVBox(row, help), addrEntry
 }
 
 // Helpers extracted to reduce cognitive complexity.
@@ -97,17 +124,17 @@ func collectSecrets(vm *ViewModel) []string {
 	}
 	return chosen
 }
-func runSendAsync(props Props, vm *ViewModel, addr string, picked []string) {
+func runSendAsync(props Props, vm *ViewModel, transportID string, addr string, picked []string) {
 	vm.State = ShareSending
-	go func() { executeSend(props, vm, addr, picked) }()
+	go func() { executeSend(props, vm, transportID, addr, picked) }()
 }
 
-func executeSend(props Props, vm *ViewModel, addr string, picked []string) {
+func executeSend(props Props, vm *ViewModel, transportID string, addr string, picked []string) {
 	bundle := buildExportBundle(picked)
 	target := transport.DeviceDescriptor{DeviceID: "manual-target", DeviceName: addr, LastAddr: addr}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	progCh, err := props.Service.SendBundle(ctx, "lan", bundle, target)
+	progCh, err := props.Service.SendBundle(ctx, transportID, bundle, target)
 	if err != nil {
 		showErr(props, "Send", err.Error())
 		return
@@ -145,7 +172,7 @@ func showErr(props Props, title, msg string) {
 }
 
 // runDiscover performs async discovery with spinner & caching.
-func runDiscover(props Props, vm *ViewModel, devicesList *widget.List, spinner *widget.ProgressBarInfinite) {
+func runDiscover(props Props, vm *ViewModel, devicesList *widget.List, spinner *widget.ProgressBarInfinite, transportID string) {
 	if props.Service == nil {
 		return
 	}
@@ -164,7 +191,7 @@ func runDiscover(props Props, vm *ViewModel, devicesList *widget.List, spinner *
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		raw, _ := props.Service.DiscoverDevices(ctx, "lan", 50)
+		raw, _ := props.Service.DiscoverDevices(ctx, transportID, 50)
 		deduped := dedupeDevices(raw, vm.LastDiscovery)
 		// Sort for stable UI (by DeviceName then ID)
 		sort.Slice(deduped, func(i, j int) bool {
@@ -191,9 +218,11 @@ func runDiscover(props Props, vm *ViewModel, devicesList *widget.List, spinner *
 		time.AfterFunc(15*time.Millisecond, func() {
 			SetDevices(vm, res, devicesList)
 			if spinner != nil {
-				fyne.DoAndWait(func() {
-					spinner.Hide()
-				})
+				go func() {
+					fyne.DoAndWait(func() {
+						spinner.Hide()
+					})
+				}()
 			}
 		})
 	}()

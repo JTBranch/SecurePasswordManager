@@ -80,6 +80,10 @@ type Dependencies struct {
 	Advertisement AdvertisementStarter
 	// KeyGen provides Ed25519 key generation explicitly (preferred over type assertion on Crypto).
 	KeyGen Ed25519KeyGenerator
+	// BluetoothAdapter optionally injects a test or platform adapter for the bluetooth transport.
+	// The type is intentionally loose (interface{}) to avoid circular imports; bluetooth
+	// transport will type-assert to its expected adapter interface.
+	BluetoothAdapter interface{}
 }
 
 // AdvertisementStarter abstracts starting an mDNS advertisement returning a closable handle.

@@ -288,6 +288,9 @@ func applyStorageOverrides(config *Config) {
 	if env := os.Getenv("CONFIG_FILE_PATH"); env != "" {
 		config.Storage.ConfigFile = env
 	}
+	if env := os.Getenv("DEVICE_KEYS_FILE_PATH"); env != "" {
+		config.Storage.DeviceKeysFile = env
+	}
 }
 
 func applyDevelopmentOverrides(config *Config) {

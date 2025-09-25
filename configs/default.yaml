@@ -1,6 +1,6 @@
 # Default configuration - base values for all environments
 application:
-  name: "GoPasswordManager"
+  name: "GoPass"
   version: "1.6.0"
   environment: "dev"
 

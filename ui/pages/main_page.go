@@ -14,7 +14,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-func MainPageWithService(win fyne.Window, secretsService *service.SecretsService, transferSvc *service.SharingTransferService, configService *config.ConfigService, onNavigateShare func()) fyne.CanvasObject {
+func MainPageWithService(win fyne.Window, secretsService *service.SecretsService, transferSvc *service.SharingTransferService, configService *config.ConfigService, onNavigateShare func(), onThemeApplied func()) fyne.CanvasObject {
 	fileData, _ := secretsService.LoadAllSecrets()
 	var selectedIdx int = -1
 	listBox := container.NewVBox()
@@ -98,6 +98,11 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 				onNavigateShare()
 			}
 		},
+		OnExport: func() {
+			if onNavigateShare != nil {
+				onNavigateShare()
+			}
+		},
 	}
 	props.OnThemeChange = func(themeName string) {
 		logger.Debug("Theme changed to:", themeName)
@@ -110,8 +115,27 @@ func MainPageWithService(win fyne.Window, secretsService *service.SecretsService
 			fyne.CurrentApp().Settings().SetTheme(&themes.DarkTheme{})
 			configService.SetTheme(themeName)
 		}
+		// keep application icon constant; UI uses light/dark PNGs for header only
+		// Wire theme-applied to navigate back to main if caller provided a handler
+		props.OnThemeApplied = func() {
+			if onThemeApplied != nil {
+				onThemeApplied()
+			}
+		}
+		// After applying a theme, navigate back to the main page by invoking onNavigateShare's inverse.
+		// If onNavigateShare is provided, simply ensure we're on the main page by doing nothing; callers
+		// that want explicit navigation can wrap this handler. The app wiring uses a showMain/ showShare
+		// closure so applying a theme should not unexpectedly navigate. For safety, if a caller exposed
+		// a navigation callback via props.OnMenuAction, prefer calling it to surface UI changes.
+		if onNavigateShare != nil {
+			// no-op here; the app has direct control to navigate. keep behaviour minimal.
+		}
 	}
 
+	// Set header starting theme from config service and build header
+	if configService != nil {
+		props.CurrentTheme = configService.GetTheme()
+	}
 	header := molecules.AppHeader(props, win)
 	// register the create button from the header so tests can find it deterministically
 	if c := findCreateButtonInHeader(header); c != nil {

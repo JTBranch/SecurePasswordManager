@@ -12,6 +12,8 @@ import (
 
 	// Side-effect import to register LAN transport
 	_ "go-password-manager/internal/transport/lan"
+	// Side-effect import to register Bluetooth transport (optional platform adapter required at runtime)
+	_ "go-password-manager/internal/transport/bluetooth"
 )
 
 var (

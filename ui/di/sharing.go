@@ -12,6 +12,7 @@ import (
 	"go-password-manager/internal/sharing"
 	"go-password-manager/internal/storage"
 	"go-password-manager/internal/transport"
+	"go-password-manager/internal/transport/bluetooth"
 	"os"
 	"strconv"
 	"time"
@@ -59,13 +60,15 @@ func BuildSharing(buildCfg *buildconfig.Config) (*SharingBundle, error) {
 	}
 	storageSvc := storage.NewFileStorage(secretsPath, buildCfg.Application.Version, "e2e-user")
 	secretsSvc := service.NewSecretsService(cryptoSvc, storageSvc)
+
 	deviceKeyFileSvc := devicekeys.NewDeviceKeyFileService(buildCfg)
 	deviceKeyMgr, err := crypto.NewDeviceKeyManager(cryptoSvc, &crypto.PemUtils{}, deviceKeyFileSvc)
 	if err != nil {
 		return nil, err
 	}
 	// Determine if we should operate entirely in-memory (no keychain, no device_keys.json persistence).
-	inMem := buildCfg.Security.Keyring.InMemory || buildCfg.IsTest()
+	env := os.Getenv("GO_PASSWORD_MANAGER_ENV")
+	inMem := buildCfg.Security.Keyring.InMemory || buildCfg.IsTest() || env == "test"
 	if inMem {
 		logger.Info("keyring mode: in-memory (no host keychain writes, no device_keys.json persistence)")
 		deviceKeyMgr.SetKeyringProvider(crypto.NewInMemoryKeyring())
@@ -94,26 +97,80 @@ func BuildSharing(buildCfg *buildconfig.Config) (*SharingBundle, error) {
 	exp := sharing.NewExportService(cryptoSvc, deviceKeyMgr)
 	imp := sharing.NewImportService(cryptoSvc, deviceKeyMgr, secretsSvc)
 	deps := transport.Dependencies{Registry: transport.NewInMemoryRegistry(), Crypto: cryptoSvc, KeyGen: cryptoSvc}
+	// Attempt to obtain a system Bluetooth adapter and inject it if present.
+	if adapt, err := bluetooth.GetSystemAdapter(""); err == nil && adapt != nil {
+		deps.BluetoothAdapter = adapt
+		logger.Debug("bluetooth: system adapter available, injected into transport dependencies")
+	} else if err != nil {
+		logger.Warn("bluetooth: failed to get system adapter", err.Error())
+	} else {
+		logger.Debug("bluetooth: no system adapter registered for this platform")
+	}
 
-	// Start a persistent advertising transport (discovery=true) so this instance is visible.
+	// Start persistent advertising transports so this instance is visible for supported transports.
 	advCtx, cancel := context.WithCancel(context.Background())
+	// Track started transports and their closers so we can clean up on exit.
+	var started []transport.BundleTransport
+	var discables []transport.DiscoverableTransport
+
 	lanTr, err := transport.Build(advCtx, "lan", map[string]any{"listen_addr": ":0", "discovery": true}, desc, deps)
-	if err != nil {
-		cancel() // fallback silently; continue without advertisement
-		lanTr = nil
+	if err == nil {
+		started = append(started, lanTr)
+		if dt, ok := lanTr.(transport.DiscoverableTransport); ok {
+			discables = append(discables, dt)
+		}
 	}
+
+	// Attempt to start bluetooth advertising transport if available (will fail harmlessly if BluetoothAdapter missing).
+	btTr, berr := transport.Build(advCtx, "bluetooth", map[string]any{"listen_addr": ":0", "discovery": true}, desc, deps)
+	if berr == nil {
+		started = append(started, btTr)
+		if dt, ok := btTr.(transport.DiscoverableTransport); ok {
+			discables = append(discables, dt)
+		}
+	}
+
+	// Compose a discovery session that merges results from all started discoverable transports.
 	var discSession service.DiscoverySession
-	if dt, ok := lanTr.(transport.DiscoverableTransport); ok {
-		discSession = &lanDiscoverySession{tr: dt}
+	if len(discables) == 1 {
+		discSession = &lanDiscoverySession{tr: discables[0]}
+	} else if len(discables) > 1 {
+		discSession = &multiDiscoverySession{trs: discables}
 	}
+
 	transfer := service.NewSharingTransferService(desc, deps, exportAdapter{exp}, imp, discSession, nil)
 	var closer func()
-	if lanTr != nil {
-		closer = func() { _ = lanTr.Close(); cancel() }
+	if len(started) > 0 {
+		closer = func() {
+			for _, tr := range started {
+				_ = tr.Close()
+			}
+			cancel()
+		}
 	} else {
 		cancel()
 	}
 	return &SharingBundle{SecretsService: secretsSvc, DeviceKeyManager: deviceKeyMgr, ExportService: exp, ImportService: imp, TransferService: transfer, DeviceDescriptor: desc, AdvertiseCloser: closer}, nil
+}
+
+// multiDiscoverySession merges devices from multiple DiscoverableTransport instances.
+type multiDiscoverySession struct {
+	trs []transport.DiscoverableTransport
+}
+
+func (m *multiDiscoverySession) Devices() []transport.DeviceDescriptor {
+	out := make([]transport.DeviceDescriptor, 0)
+	for _, t := range m.trs {
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		_ = ctx
+		// call Discover on each transport with a short timeout; ignore errors per-transport
+		if d, ok := t.(transport.DiscoverableTransport); ok {
+			devs, _ := d.Discover(context.Background(), 50)
+			out = append(out, devs...)
+		}
+		cancel()
+	}
+	return out
 }
 
 // lanDiscoverySession adapts a running LAN transport to the DiscoverySession interface.

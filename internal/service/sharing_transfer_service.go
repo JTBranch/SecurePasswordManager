@@ -129,7 +129,11 @@ func NewSharingTransferService(local transport.DeviceDescriptor, deps transport.
 func (s *SharingTransferService) DiscoverDevices(ctx context.Context, transportID string, limit int) ([]transport.DeviceDescriptor, error) {
 	// Prefer a long-lived discovery session if injected (avoids creating new transports).
 	logger.Debug("Begin discover of available devices")
-	if s.discover != nil {
+	// If a discovery session was injected, prefer it only when caller did
+	// not request a specific transport. When `transportID` is supplied
+	// (e.g. user selected "bluetooth"), build an ephemeral transport so
+	// the requested transport is used for discovery.
+	if s.discover != nil && transportID == "" {
 		devs := s.discover.Devices()
 		logger.Debug(fmt.Sprintf("found %d devs", len(devs)))
 		if limit > 0 && len(devs) > limit {

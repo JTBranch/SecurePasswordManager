@@ -72,7 +72,7 @@ func (t *Transport) ID() string { return "lan" }
 const (
 	txtDeviceID   = "device_id="
 	txtDeviceName = "device_name="
-	serviceType   = "_vibes-pass._tcp"
+	serviceType   = "_gopass-pass._tcp"
 	serviceDomain = "local."
 )
 
@@ -125,7 +125,7 @@ func (t *Transport) activeBrowseCollect(ctx context.Context, limit int) []transp
 	}
 	entries := make(chan *zeroconf.ServiceEntry)
 	browseCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	logger.Debug("lan.discover: browsing _vibes-pass._tcp for up to 2000ms")
+	logger.Debug("lan.discover: browsing _gopass-pass._tcp for up to 2000ms")
 	if err := resolver.Browse(browseCtx, serviceType, serviceDomain, entries); err != nil {
 		logger.Debug("lan.discover: browse error: " + err.Error())
 		cancel()
@@ -189,7 +189,7 @@ func (t *Transport) writeFallbackFile(addr string) {
 		return
 	}
 	dir := os.TempDir()
-	path := filepath.Join(dir, "vibes-pass-instance-"+t.local.DeviceID)
+	path := filepath.Join(dir, "gopass-pass-instance-"+t.local.DeviceID)
 	data := t.local.DeviceID + "|" + t.local.DeviceName + "|" + addr
 	if err := os.WriteFile(path, []byte(data), 0o600); err == nil {
 		logger.Debug("lan.fallback: wrote instance file=" + path)
@@ -215,7 +215,7 @@ func (t *Transport) readFallbackPeers() []transport.DeviceDescriptor {
 	byName := map[string]candidate{}
 	for _, e := range entries {
 		name := e.Name()
-		if !strings.HasPrefix(name, "vibes-pass-instance-") {
+		if !strings.HasPrefix(name, "gopass-pass-instance-") {
 			continue
 		}
 		info, ierr := e.Info()

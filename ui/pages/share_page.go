@@ -33,7 +33,7 @@ func SharePage(win fyne.Window, secretsService *service.SecretsService, transfer
 	vm := share.NewViewModel(secretNames)
 	devicesList := share.DevicesList(vm)
 	secretsList := share.SecretsList(vm, props.Secrets)
-	bar := share.ActionBar(props, vm, devicesList)
+	bar, _ := share.ActionBar(props, vm, devicesList)
 	status := widget.NewLabel(fmt.Sprintf("Ready to share %d secrets", len(props.Secrets)))
 	backBtn := widget.NewButton("Back", func() {
 		if onBack != nil {
@@ -52,10 +52,13 @@ func SharePage(win fyne.Window, secretsService *service.SecretsService, transfer
 		prev := vm.State
 		for {
 			if vm.State != prev {
-				fyne.DoAndWait(func() {
-					status.SetText(string(vm.State))
-					prev = vm.State
-				})
+				s := vm.State
+				go func() {
+					fyne.DoAndWait(func() {
+						status.SetText(string(s))
+						prev = s
+					})
+				}()
 			}
 			time.Sleep(200 * time.Millisecond)
 		}

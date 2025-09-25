@@ -35,7 +35,7 @@ func StartBrowser(ctx context.Context) *Browser {
 
 func (b *Browser) runBrowse(ctx context.Context, resolver *zeroconf.Resolver, results chan *zeroconf.ServiceEntry) {
 	defer close(results)
-	_ = resolver.Browse(ctx, "_vibes-pass._tcp", "local.", results)
+	_ = resolver.Browse(ctx, "_gopass-pass._tcp", "local.", results)
 }
 
 func (b *Browser) consumeResults(ctx context.Context, results chan *zeroconf.ServiceEntry) {

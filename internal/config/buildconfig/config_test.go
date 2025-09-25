@@ -17,7 +17,7 @@ func TestLoadDefaultConfig(t *testing.T) {
 	require.NoError(t, err, "Failed to load config")
 
 	// Test default values
-	assert.Equal(t, "GoPasswordManager", config.Application.Name, "Expected app name 'GoPasswordManager'")
+	assert.Equal(t, "GoPass", config.Application.Name, "Expected app name 'GoPasswordManager'")
 	assert.Equal(t, 1600, config.UI.Window.Width, "Expected window width 1600")
 	assert.Equal(t, 900, config.UI.Window.Height, "Expected window height 900")
 	assert.Equal(t, 32, config.Security.Encryption.KeySize, "Expected encryption key size 32")
@@ -102,7 +102,7 @@ func TestDynamicConfigMerging(t *testing.T) {
 
 		cfg, err := Load()
 		assert.NoError(t, err)
-		assert.Equal(t, "GoPasswordManager", cfg.Application.Name)
+		assert.Equal(t, "GoPass", cfg.Application.Name)
 		assert.Equal(t, "development", cfg.Application.Environment)
 		assert.Equal(t, 1600, cfg.UI.Window.Width)
 		assert.Equal(t, 900, cfg.UI.Window.Height) // fallback from default

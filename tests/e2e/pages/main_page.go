@@ -48,7 +48,7 @@ func NewMainPageObject(t *testing.T, window fyne.Window, secretsService *service
 
 // LoadPage loads the main page content
 func (p *MainPageObject) LoadPage() {
-	p.mainContent = pages.MainPageWithService(p.window, p.secretsService, p.sharingTransferService, p.configService, nil)
+	p.mainContent = pages.MainPageWithService(p.window, p.secretsService, p.sharingTransferService, p.configService, nil, nil)
 	p.window.SetContent(p.mainContent)
 	p.waitForUIUpdate()
 }

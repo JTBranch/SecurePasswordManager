@@ -38,8 +38,9 @@ type ViewModel struct {
 	LastDiscovery   []transport.DeviceDescriptor
 	LastDiscoveryAt time.Time
 	ShowFallback    bool
+	OnDeviceAction  func(idx int, action string)
 }
 
 func NewViewModel(secretNames []string) *ViewModel {
-	return &ViewModel{State: ShareIdle, Devices: []transport.DeviceDescriptor{}, SelectedSecret: map[int]bool{}, SelectedDevice: map[int]bool{}, SecretNames: secretNames, StatusText: "", ShowFallback: false}
+	return &ViewModel{State: ShareIdle, Devices: []transport.DeviceDescriptor{}, SelectedSecret: map[int]bool{}, SelectedDevice: map[int]bool{}, SecretNames: secretNames, StatusText: "", ShowFallback: false, OnDeviceAction: nil}
 }

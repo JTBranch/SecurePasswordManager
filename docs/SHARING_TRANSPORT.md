@@ -44,7 +44,7 @@ Pivot: We use standard library TLS 1.3 with self‑signed (or persisted) Ed25519
 
 Key points:
 
-1. Listener binds to `:0` by default (ephemeral port) and (optionally) advertises an mDNS service (`_vibes-pass._tcp`) when `discovery=true` in config.
+1. Listener binds to `:0` by default (ephemeral port) and (optionally) advertises an mDNS service (`_gopass-pass._tcp`) when `discovery=true` in config.
 2. Persistent identity: If a crypto service can supply / generate an Ed25519 key pair and the descriptor lacks one, a self‑signed cert is created from it; else an ephemeral cert (12–24h) is generated.
 3. Protobuf framing: A length‑prefixed `Envelope` message is written: `type=DATA`, `sender_id`, `bundle` (serialized `SecretExportBundle`). ACK and ERROR are reserved envelope types.
 4. Receiver pushes bundle to an internal channel and (if `AckWait>0`) responds with an `Envelope{ type=ACK }`.
