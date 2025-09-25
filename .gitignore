@@ -54,3 +54,4 @@ test_macos_*.sh
 *.local
 local-*
 .vscode.gomodcache/cache/
+.vscode/
