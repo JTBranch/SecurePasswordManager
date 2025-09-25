@@ -1,0 +1,39 @@
+# Default configuration - base values for all environments
+application:
+  name: "GoPass"
+  version: "1.6.0"
+  environment: "dev"
+
+ui:
+  window:
+    width: 1600
+    height: 900
+  theme: "default"
+
+logging:
+  debug: true
+  level: "info"
+  format: "json"
+  useUserConfigDir: false
+
+security:
+  encryption:
+    key_size: 32
+    algorithm: "AES-256-GCM"
+  keyring:
+    in_memory: false
+
+storage:
+  secrets_file: "secrets.json"
+  config_file: "app.config"
+  device_keys_file: "device_keys.json"
+  secrets_key_metadata_file: "secrets_key_metadata.json"
+
+development:
+  hot_reload: false
+  auto_save: true
+
+testing:
+  timeout: "30s"
+  data_dir: ""
+  parallel: true

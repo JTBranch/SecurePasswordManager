@@ -37,6 +37,23 @@ echo "📦 Installing version $VERSION..."
 curl -L -o "$INSTALL_DIR/password-manager" "$DOWNLOAD_URL"
 chmod +x "$INSTALL_DIR/password-manager"
 
+# Download configs archive from release if available
+CONFIGS_URL=$(echo "$LATEST_RELEASE" | grep "browser_download_url.*configs-.*zip" | cut -d '"' -f 4)
+if [[ -n "$CONFIGS_URL" ]]; then
+    echo "📁 Downloading configs..."
+    curl -L -o "$INSTALL_DIR/configs.zip" "$CONFIGS_URL"
+    if command -v unzip >/dev/null 2>&1; then
+        unzip -o "$INSTALL_DIR/configs.zip" -d "$INSTALL_DIR"
+        rm "$INSTALL_DIR/configs.zip"
+    else
+        echo "⚠️  unzip not found; created configs.zip in install dir. Please extract it to $INSTALL_DIR"
+    fi
+else
+    echo "📁 No configs archive in release; fetching default config from repository..."
+    mkdir -p "$INSTALL_DIR/configs"
+    curl -sL https://raw.githubusercontent.com/JTBranch/SecurePasswordManager/main/configs/default.yaml -o "$INSTALL_DIR/configs/default.yaml" || true
+fi
+
 # Create desktop entry if we're in a desktop environment
 if [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
     DESKTOP_DIR="$HOME/.local/share/applications"
@@ -46,7 +63,7 @@ if [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
 [Desktop Entry]
 Name=Go Password Manager
 Comment=Secure password management application
-Exec=$INSTALL_DIR/password-manager
+Exec=env GO_PASSWORD_MANAGER_ENV=production $INSTALL_DIR/password-manager
 Icon=applications-utilities
 Terminal=false
 Type=Application

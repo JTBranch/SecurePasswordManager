@@ -1,6 +1,7 @@
 package buildconfig
 
 import (
+	"embed"
 	"errors"
 	"fmt"
 	"os" // Changed from io/ioutil
@@ -81,14 +82,37 @@ type TestingConfig struct {
 }
 
 // findProjectRoot finds the root of the project by looking for go.mod
-func findProjectRoot() (string, error) {
-	// Allow overriding the project root via environment variable (useful in containers).
-	if env := os.Getenv("GO_PASSWORD_MANAGER_PROJECT_ROOT"); env != "" {
-		if _, err := os.Stat(filepath.Join(env, "go.mod")); err == nil {
-			return env, nil
-		}
+func findProjectRoot() (string, bool, error) {
+	// 1) Allow explicit override via environment variable (useful in containers).
+	if env := getEnvProjectRoot(); env != "" {
+		return env, true, nil
 	}
 
+	// 2) Walk parents from working directory to find go.mod
+	if dir, err := walkForGoMod(); err == nil {
+		return dir, true, nil
+	}
+
+	// 3) Fall back to searching for bundled configs near the running executable
+	if td, err := findConfigsNearExecutable(); err == nil {
+		return td, false, nil
+	}
+
+	return "", false, errors.New("go.mod not found")
+}
+
+// getEnvProjectRoot returns the env override if it points to a directory containing go.mod.
+func getEnvProjectRoot() string {
+	if env := os.Getenv("GO_PASSWORD_MANAGER_PROJECT_ROOT"); env != "" {
+		if _, err := os.Stat(filepath.Join(env, "go.mod")); err == nil {
+			return env
+		}
+	}
+	return ""
+}
+
+// walkForGoMod walks upwards from the current working directory looking for go.mod.
+func walkForGoMod() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -99,10 +123,32 @@ func findProjectRoot() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", errors.New("go.mod not found")
+			break
 		}
 		dir = parent
 	}
+	return "", fmt.Errorf("go.mod not found in working directory tree")
+}
+
+// findConfigsNearExecutable checks common locations around the running executable
+// for a bundled `configs/default.yaml` (useful for installed binaries and macOS bundles).
+func findConfigsNearExecutable() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	exeDir := filepath.Dir(exe)
+	tryDirs := []string{
+		exeDir,
+		filepath.Join(exeDir, "Contents", "Resources"),
+		filepath.Join(exeDir, "..", "Resources"),
+	}
+	for _, td := range tryDirs {
+		if _, statErr := os.Stat(filepath.Join(td, "configs", "default.yaml")); statErr == nil {
+			return td, nil
+		}
+	}
+	return "", fmt.Errorf("configs not found near executable")
 }
 
 var globalConfig *Config
@@ -118,10 +164,17 @@ func Load() (*Config, error) {
 			env = "development" // Default to development
 		}
 
-		root, err := findProjectRoot()
+		root, foundGoMod, err := findProjectRoot()
 		if err != nil {
 			loadErr = fmt.Errorf("failed to find project root: %w", err)
 			return
+		}
+
+		// If we didn't find a go.mod (installed binary), default environment to production unless overridden.
+		if !foundGoMod {
+			if os.Getenv("GO_PASSWORD_MANAGER_ENV") == "" && os.Getenv("APP_ENV") == "" {
+				env = "production"
+			}
 		}
 
 		// Always load default config first
@@ -215,7 +268,16 @@ func Get() *Config {
 func loadConfigFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		// If the file does not exist on disk, fall back to embedded default configs (if available).
+		if os.IsNotExist(err) {
+			if bytes, embErr := readEmbeddedConfigFallback(path); embErr == nil {
+				data = bytes
+			} else {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	var config Config
@@ -224,6 +286,27 @@ func loadConfigFile(path string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+//go:embed configs/*.yaml
+var embeddedConfigs embed.FS
+
+// readEmbeddedConfigFallback attempts to return an embedded config matching the basename of path.
+func readEmbeddedConfigFallback(path string) ([]byte, error) {
+	base := filepath.Base(path)
+	// The embedded files are stored with the relative path used in the //go:embed directive.
+	// We try a few likely relative names to be resilient.
+	candidates := []string{
+		"../../../configs/" + base,
+		"configs/" + base,
+		base,
+	}
+	for _, c := range candidates {
+		if bytes, err := embeddedConfigs.ReadFile(c); err == nil {
+			return bytes, nil
+		}
+	}
+	return nil, fmt.Errorf("embedded config %s not found", base)
 }
 
 // applyEnvOverrides applies environment variable overrides in smaller functions

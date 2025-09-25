@@ -24,11 +24,16 @@ var (
 func runApp() error {
 	// Handle version flag
 	var showVersion = flag.Bool("version", false, "Show version information")
+	var printEnv = flag.Bool("print-env", false, "Print loaded environment and exit")
 	flag.Parse()
 
 	buildCfg, err := buildconfig.Load()
 	if err != nil {
 		return fmt.Errorf("load build config: %w", err)
+	}
+	if *printEnv {
+		fmt.Printf("%s\n", buildCfg.Application.Environment)
+		return nil
 	}
 
 	if *showVersion {
