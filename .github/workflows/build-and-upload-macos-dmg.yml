@@ -84,6 +84,17 @@ jobs:
           # Create the DMG from assembled (signed or unsigned) app
           ./scripts/create-macos-dmg.sh "$ARCH" "$VERSION"
 
+          # Debug: verify DMG was created and show contents for easier troubleshooting in Actions logs
+          DMG_PATH="dist/macos-dmg/GoPasswordManager-${VERSION}-${ARCH}.dmg"
+          echo "Looking for DMG at: $DMG_PATH"
+          echo "Listing dist/macos-dmg contents:" && ls -la dist/macos-dmg || true
+          if [[ ! -f "$DMG_PATH" ]]; then
+            echo "ERROR: expected DMG not found: $DMG_PATH" >&2
+            echo "Contents of dist/macos-dmg:" && ls -la dist/macos-dmg || true
+            exit 2
+          fi
+          echo "DMG present: $(stat -f '%z bytes' "$DMG_PATH" || stat -c '%s bytes' "$DMG_PATH" || true)"
+
       - name: Upload DMG file
         uses: actions/upload-release-asset@v1
         with:
